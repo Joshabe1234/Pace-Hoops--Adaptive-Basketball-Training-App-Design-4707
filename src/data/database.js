@@ -19,7 +19,7 @@ export const initializeDatabase = () => {
       title: 'The Zen Master',
       specialty: 'Mental Focus & Team Basketball',
       philosophy: 'Mindful basketball with emphasis on mental preparation, team chemistry, and fundamental excellence.',
-      image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/Phil_Jackson_2007.jpg/440px-Phil_Jackson_2007.jpg',
+      image: 'https://www.basketball-reference.com/req/202106291/images/headshots/jacksph01.jpg',
       methods: ['mindfulness', 'triangle-system', 'leadership-development']
     },
     {
@@ -28,7 +28,7 @@ export const initializeDatabase = () => {
       title: 'The Innovator',
       specialty: 'Modern Offense & Shooting',
       philosophy: 'Fast-paced, three-point focused offense with emphasis on ball movement and spacing.',
-      image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/Steve_Kerr_Talks_to_Reporters.jpg/440px-Steve_Kerr_Talks_to_Reporters.jpg',
+      image: 'https://www.basketball-reference.com/req/202106291/images/headshots/kerrst01.jpg',
       methods: ['motion-offense', 'analytics-driven', 'player-empowerment']
     },
     {
@@ -37,7 +37,7 @@ export const initializeDatabase = () => {
       title: 'The Fundamentalist',
       specialty: 'Defense & Fundamentals',
       philosophy: 'Disciplined approach focusing on defensive excellence, fundamentals, and basketball IQ.',
-      image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7e/Gregg_Popovich_2014.jpg/440px-Gregg_Popovich_2014.jpg',
+      image: 'https://www.basketball-reference.com/req/202106291/images/headshots/popovgr99c.jpg',
       methods: ['defensive-systems', 'fundamental-focus', 'mental-toughness']
     },
     {
