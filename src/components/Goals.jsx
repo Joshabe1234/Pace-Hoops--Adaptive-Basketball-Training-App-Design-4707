@@ -12,9 +12,9 @@ import {
 } from '../data/database';
 import { paceBrain } from '../services/paceBrain';
 
-const { FiPlus, FiTarget, FiClock, FiChevronRight, FiArchive, FiRefreshCw, FiStar, FiLock } = FiIcons;
+const { FiPlus, FiTarget, FiClock, FiChevronRight, FiArchive, FiRefreshCw, FiStar, FiLock, FiEdit2 } = FiIcons;
 
-const Goals = ({ user, onSelectGoal, onNewGoal, onRefresh }) => {
+const Goals = ({ user, onSelectGoal, onNewGoal, onCustomPlan, onRefresh }) => {
   const [activeTab, setActiveTab] = useState('current');
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   
@@ -166,15 +166,27 @@ const Goals = ({ user, onSelectGoal, onNewGoal, onRefresh }) => {
           </p>
         </div>
         
-        <motion.button
-          onClick={handleNewGoalClick}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200"
-        >
-          <SafeIcon icon={FiPlus} className="w-5 h-5" />
-          <span>New Goal</span>
-        </motion.button>
+        <div className="flex items-center space-x-3">
+          <motion.button
+            onClick={onCustomPlan}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className="flex items-center space-x-2 px-4 py-2 border border-blue-600 text-blue-600 rounded-xl font-medium hover:bg-blue-50 transition-colors"
+          >
+            <SafeIcon icon={FiEdit2} className="w-5 h-5" />
+            <span>Custom Plan</span>
+          </motion.button>
+          
+          <motion.button
+            onClick={handleNewGoalClick}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200"
+          >
+            <SafeIcon icon={FiPlus} className="w-5 h-5" />
+            <span>New Goal</span>
+          </motion.button>
+        </div>
       </div>
 
       {/* Tabs */}
