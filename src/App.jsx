@@ -10,6 +10,7 @@ import GoalInput from './components/GoalInput';
 import Goals from './components/Goals';
 import TrainingPlan from './components/TrainingPlan';
 import Profile from './components/Profile';
+import CustomPlanBuilder from './components/CustomPlanBuilder';
 
 // Services
 import { 
@@ -42,6 +43,7 @@ function App() {
   const [currentPlan, setCurrentPlan] = useState(null);
   const [coaches, setCoaches] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isCustomPlan, setIsCustomPlan] = useState(false);
 
   useEffect(() => {
     // Initialize database on app start
@@ -156,7 +158,33 @@ function App() {
 
   const handleNewGoal = () => {
     setSelectedCoach(null);
+    setIsCustomPlan(false);
     setCurrentStep('coach-selection');
+  };
+
+  const handleCustomPlanStart = () => {
+    setIsCustomPlan(true);
+    setCurrentStep('custom-plan-builder');
+  };
+
+  const handleCustomPlanSave = (customPlan) => {
+    // Create a goal for the custom plan
+    const goal = createGoal(user.id, {
+      description: customPlan.name || 'Custom Training Plan',
+      timeframe: `${customPlan.totalWeeks} weeks`,
+      coachId: 'custom',
+      availability: {},
+      isCustomPlan: true
+    });
+    
+    // Save the plan
+    const plan = createTrainingPlan(user.id, goal.id, 'custom', customPlan);
+    
+    setCurrentGoal(goal);
+    setCurrentPlan(plan);
+    setLastViewedGoal(user.id, goal.id);
+    setIsCustomPlan(false);
+    setCurrentStep('training-plan');
   };
 
   const resetApp = () => {
@@ -210,7 +238,17 @@ function App() {
             user={user}
             onSelectGoal={handleGoalSelect}
             onNewGoal={handleNewGoal}
+            onCustomPlan={handleCustomPlanStart}
             onRefresh={refreshUser}
+          />
+        );
+      
+      case 'custom-plan-builder':
+        return (
+          <CustomPlanBuilder
+            user={user}
+            onSavePlan={handleCustomPlanSave}
+            onBack={() => setCurrentStep('goals')}
           />
         );
       
