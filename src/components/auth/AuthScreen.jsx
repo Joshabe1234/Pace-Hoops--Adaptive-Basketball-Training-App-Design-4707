@@ -15,11 +15,9 @@ const AuthScreen = ({ onLogin }) => {
     email: '',
     name: '',
     role: '',
-    // Coach fields
     organization: '',
     teamName: '',
     teamLevel: '',
-    // Player fields
     joinCode: '',
     age: '',
     position: '',
@@ -38,7 +36,6 @@ const AuthScreen = ({ onLogin }) => {
     setError('');
 
     try {
-      // Validate
       if (!formData.email || !formData.name) {
         throw new Error('Please fill in all required fields');
       }
@@ -46,13 +43,11 @@ const AuthScreen = ({ onLogin }) => {
         throw new Error('Please enter a team name');
       }
 
-      // Check if email exists
       const existing = getUserByEmail(formData.email);
       if (existing) {
         throw new Error('Email already registered. Please log in.');
       }
 
-      // Create coach user
       const coach = createUser({
         email: formData.email,
         name: formData.name,
@@ -60,7 +55,6 @@ const AuthScreen = ({ onLogin }) => {
         organization: formData.organization
       });
 
-      // Create team
       const team = createTeam(coach.id, {
         name: formData.teamName,
         level: formData.teamLevel
@@ -79,24 +73,22 @@ const AuthScreen = ({ onLogin }) => {
     setError('');
 
     try {
-      // Validate
       if (!formData.email || !formData.name) {
         throw new Error('Please fill in all required fields');
       }
-      if (!formData.joinCode) {
-        throw new Error('Please enter your team join code');
-      }
 
-      // Find team by join code
-      const team = getTeamByJoinCode(formData.joinCode);
-      if (!team) {
-        throw new Error('Invalid team code. Please check with your coach.');
-      }
-
-      // Check if email exists
       const existing = getUserByEmail(formData.email);
       if (existing) {
         throw new Error('Email already registered. Please log in.');
+      }
+
+      // Team code is OPTIONAL
+      let team = null;
+      if (formData.joinCode && formData.joinCode.trim().length > 0) {
+        team = getTeamByJoinCode(formData.joinCode);
+        if (!team) {
+          throw new Error('Invalid team code. Please check with your coach, or leave blank to join later.');
+        }
       }
 
       // Create player user
@@ -104,14 +96,16 @@ const AuthScreen = ({ onLogin }) => {
         email: formData.email,
         name: formData.name,
         role: 'player',
-        teamId: team.id,
+        teamId: team ? team.id : null,
         age: formData.age ? parseInt(formData.age) : null,
         position: formData.position,
         jerseyNumber: formData.jerseyNumber
       });
 
-      // Add player to team
-      addPlayerToTeam(team.id, player.id);
+      // Add player to team if team was provided
+      if (team) {
+        addPlayerToTeam(team.id, player.id);
+      }
 
       onLogin(player, team);
     } catch (err) {
@@ -135,7 +129,6 @@ const AuthScreen = ({ onLogin }) => {
         throw new Error('No account found with this email');
       }
 
-      // Get their team
       let team = null;
       if (user.role === 'coach' && user.teamIds?.length > 0) {
         team = getTeam(user.teamIds[0]);
@@ -192,7 +185,7 @@ const AuthScreen = ({ onLogin }) => {
           </div>
           <div>
             <h3 className="text-xl font-bold text-white">I'm a Player</h3>
-            <p className="text-white/80 text-sm">Join your team and complete training</p>
+            <p className="text-white/80 text-sm">Track your training and improve your game</p>
           </div>
         </div>
       </button>
@@ -346,23 +339,10 @@ const AuthScreen = ({ onLogin }) => {
           </svg>
         </div>
         <h2 className="text-2xl font-bold text-white mb-2">Player Sign Up</h2>
-        <p className="text-slate-400">Join your team with a code from your coach</p>
+        <p className="text-slate-400">Create your account and start training</p>
       </div>
 
       <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-slate-300 mb-2">Team Code *</label>
-          <input
-            type="text"
-            value={formData.joinCode}
-            onChange={(e) => handleInputChange('joinCode', e.target.value.toUpperCase())}
-            placeholder="ABC123"
-            maxLength={6}
-            className="w-full p-4 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-2xl tracking-widest font-mono"
-          />
-          <p className="text-slate-500 text-sm mt-2">Get this code from your coach</p>
-        </div>
-
         <div>
           <label className="block text-sm font-medium text-slate-300 mb-2">Your Name *</label>
           <input
@@ -383,6 +363,24 @@ const AuthScreen = ({ onLogin }) => {
             placeholder="player@example.com"
             className="w-full p-4 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
+        </div>
+
+        {/* Team Code - OPTIONAL */}
+        <div className="p-4 bg-slate-800/50 border border-slate-700 rounded-xl">
+          <label className="block text-sm font-medium text-slate-300 mb-2">
+            Team Code <span className="text-slate-500">(optional)</span>
+          </label>
+          <input
+            type="text"
+            value={formData.joinCode}
+            onChange={(e) => handleInputChange('joinCode', e.target.value.toUpperCase())}
+            placeholder="ABC123"
+            maxLength={6}
+            className="w-full p-4 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-2xl tracking-widest font-mono"
+          />
+          <p className="text-slate-500 text-sm mt-2">
+            Have a team code from your coach? Enter it here. You can also join a team later.
+          </p>
         </div>
 
         <div className="grid grid-cols-3 gap-4">
@@ -436,7 +434,7 @@ const AuthScreen = ({ onLogin }) => {
           disabled={isLoading}
           className="w-full p-4 bg-blue-500 text-white rounded-xl font-semibold hover:bg-blue-400 transition-colors disabled:opacity-50"
         >
-          {isLoading ? 'Joining Team...' : 'Join Team'}
+          {isLoading ? 'Creating Account...' : 'Create Player Account'}
         </button>
       </div>
     </motion.div>
