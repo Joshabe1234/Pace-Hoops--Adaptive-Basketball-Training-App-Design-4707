@@ -19,8 +19,24 @@ const PlayerAssignments = ({ user, team }) => {
     weight: '',
     time: '',
     difficulty: 3,
+    soreness: 'none',
     notes: ''
   });
+
+  // Handle case where player has no team
+  if (!team) {
+    return (
+      <div className="p-6">
+        <div className="bg-slate-800 rounded-xl border border-slate-700 p-8 text-center">
+          <div className="w-20 h-20 bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span className="text-4xl">🏋️</span>
+          </div>
+          <h3 className="text-xl font-semibold text-white mb-2">No Team Yet</h3>
+          <p className="text-slate-400">Join a team to receive training assignments from your coach.</p>
+        </div>
+      </div>
+    );
+  }
 
   const assignments = getPlayerAssignments(user.id, team.id);
   const logs = getPlayerLogs(user.id);
@@ -47,11 +63,12 @@ const PlayerAssignments = ({ user, team }) => {
       weight: logData.weight ? parseFloat(logData.weight) : undefined,
       time: logData.time ? parseInt(logData.time) : undefined,
       difficulty: logData.difficulty,
+      soreness: logData.soreness,
       notes: logData.notes,
       completed: true
     });
 
-    setLogData({ makes: '', attempts: '', sets: '', reps: '', weight: '', time: '', difficulty: 3, notes: '' });
+    setLogData({ makes: '', attempts: '', sets: '', reps: '', weight: '', time: '', difficulty: 3, soreness: 'none', notes: '' });
     setLoggingItem(null);
   };
 
@@ -105,7 +122,7 @@ const PlayerAssignments = ({ user, team }) => {
                     <div className="mt-3 h-2 bg-slate-700 rounded-full overflow-hidden">
                       <div 
                         className="h-full bg-gradient-to-r from-orange-500 to-orange-400 transition-all"
-                        style={{ width: `${(completedCount / items.length) * 100}%` }}
+                        style={{ width: `${items.length > 0 ? (completedCount / items.length) * 100 : 0}%` }}
                       />
                     </div>
                   </div>
@@ -211,7 +228,7 @@ const PlayerAssignments = ({ user, team }) => {
               initial={{ scale: 0.9 }}
               animate={{ scale: 1 }}
               exit={{ scale: 0.9 }}
-              className="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-md p-6"
+              className="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-md p-6 max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
               <h2 className="text-xl font-bold text-white mb-2">Log {loggingItem.name}</h2>
@@ -295,13 +312,46 @@ const PlayerAssignments = ({ user, team }) => {
                   </div>
                 </div>
 
+                {/* Soreness */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Any soreness or pain?
+                  </label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[
+                      { value: 'none', label: 'None', color: 'green' },
+                      { value: 'mild', label: 'Mild', color: 'yellow' },
+                      { value: 'moderate', label: 'Moderate', color: 'orange' },
+                      { value: 'severe', label: 'Severe', color: 'red' }
+                    ].map((option) => (
+                      <button
+                        key={option.value}
+                        onClick={() => setLogData(p => ({ ...p, soreness: option.value }))}
+                        className={`p-2 rounded-lg text-sm font-medium transition-colors ${
+                          logData.soreness === option.value
+                            ? option.color === 'green' ? 'bg-green-500 text-white' :
+                              option.color === 'yellow' ? 'bg-yellow-500 text-black' :
+                              option.color === 'orange' ? 'bg-orange-500 text-white' :
+                              'bg-red-500 text-white'
+                            : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-slate-500 mt-2">
+                    This helps your coach monitor your recovery and adjust your training.
+                  </p>
+                </div>
+
                 {/* Notes */}
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">Notes</label>
                   <textarea
                     value={logData.notes}
                     onChange={(e) => setLogData(p => ({ ...p, notes: e.target.value }))}
-                    placeholder="How did it go?"
+                    placeholder="How did it go? Any issues?"
                     rows={2}
                     className="w-full p-3 bg-slate-700 border border-slate-600 rounded-xl text-white resize-none"
                   />
