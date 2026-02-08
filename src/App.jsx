@@ -1,444 +1,263 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import SafeIcon from './common/SafeIcon';
-import * as FiIcons from 'react-icons/fi';
+import { initializeDatabase, getUser, getTeam } from './data/database';
 
-// Components
-import UserOnboarding from './components/UserOnboarding';
-import CoachSelection from './components/CoachSelection';
-import GoalInput from './components/GoalInput';
-import Goals from './components/Goals';
-import TrainingPlan from './components/TrainingPlan';
-import Profile from './components/Profile';
-import CustomPlanBuilder from './components/CustomPlanBuilder';
+// Auth Components
+import AuthScreen from './components/auth/AuthScreen';
 
-// Services
-import { 
-  initializeDatabase, 
-  createUser, 
-  getUser,
-  updateUser,
-  getAllCoaches, 
-  getCoach,
-  getCoachDrills,
-  createGoal,
-  getGoal,
-  getCurrentGoals,
-  createTrainingPlan,
-  getPlanByGoal,
-  createLog,
-  setLastViewedGoal
-} from './data/database';
-import { paceBrain } from './services/paceBrain';
+// Coach Components
+import CoachDashboard from './components/coach/CoachDashboard';
+import CoachRoster from './components/coach/CoachRoster';
+import CoachAssignments from './components/coach/CoachAssignments';
+import CoachStats from './components/coach/CoachStats';
+import CoachSchedule from './components/coach/CoachSchedule';
+import CoachChat from './components/coach/CoachChat';
+
+// Player Components
+import PlayerDashboard from './components/player/PlayerDashboard';
+import PlayerAssignments from './components/player/PlayerAssignments';
+import PlayerStats from './components/player/PlayerStats';
+import PlayerSchedule from './components/player/PlayerSchedule';
+import PlayerChat from './components/player/PlayerChat';
+
+// Common Components
+import Navigation from './components/common/Navigation';
 
 import './App.css';
 
-const { FiHome, FiTarget, FiUser, FiActivity, FiList } = FiIcons;
-
 function App() {
-  const [currentStep, setCurrentStep] = useState('onboarding');
   const [user, setUser] = useState(null);
-  const [selectedCoach, setSelectedCoach] = useState(null);
-  const [currentGoal, setCurrentGoal] = useState(null);
-  const [currentPlan, setCurrentPlan] = useState(null);
-  const [coaches, setCoaches] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isCustomPlan, setIsCustomPlan] = useState(false);
+  const [currentTeam, setCurrentTeam] = useState(null);
+  const [currentView, setCurrentView] = useState('dashboard');
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Initialize database on app start
+    // Initialize database
     initializeDatabase();
-    setCoaches(getAllCoaches());
-    
-    // Check for existing user in localStorage
-    const savedUserId = localStorage.getItem('paceHoopsUserId');
-    if (savedUserId) {
-      const savedUser = getUser(savedUserId);
-      if (savedUser) {
-        setUser(savedUser);
+
+    // Check for existing session
+    const storedUserId = localStorage.getItem('paceHoopsUserId');
+    if (storedUserId) {
+      const existingUser = getUser(storedUserId);
+      if (existingUser) {
+        setUser(existingUser);
         
-        // Load last viewed goal if exists
-        if (savedUser.lastViewedGoalId) {
-          const lastGoal = getGoal(savedUser.lastViewedGoalId);
-          if (lastGoal) {
-            setCurrentGoal(lastGoal);
-            const plan = getPlanByGoal(lastGoal.id);
-            if (plan) {
-              setCurrentPlan(plan);
-              const coach = getCoach(lastGoal.coachId);
-              setSelectedCoach(coach);
-            }
-          }
+        // Load team
+        if (existingUser.role === 'coach' && existingUser.teamIds?.length > 0) {
+          setCurrentTeam(getTeam(existingUser.teamIds[0]));
+        } else if (existingUser.role === 'player' && existingUser.teamId) {
+          setCurrentTeam(getTeam(existingUser.teamId));
         }
-        
-        setCurrentStep('goals');
       }
     }
+    
+    setIsLoading(false);
   }, []);
 
-  const handleUserOnboardingComplete = (userData) => {
-    setIsLoading(true);
-    
-    const newUser = createUser(userData);
-    localStorage.setItem('paceHoopsUserId', newUser.id);
-    
-    setUser(newUser);
-    setCurrentStep('coach-selection');
-    setIsLoading(false);
+  const handleLogin = (loggedInUser, team) => {
+    setUser(loggedInUser);
+    setCurrentTeam(team);
+    localStorage.setItem('paceHoopsUserId', loggedInUser.id);
   };
 
-  const handleCoachSelection = (coach) => {
-    setSelectedCoach(coach);
-    setCurrentStep('goal-input');
-  };
-
-  const handleGoalSubmission = async (goalData) => {
-    setIsLoading(true);
-    
-    try {
-      // Create goal in database
-      const goal = createGoal(user.id, goalData);
-      setCurrentGoal(goal);
-      
-      // Get coach and drills
-      const coach = getCoach(goalData.coachId);
-      const drills = getCoachDrills(goalData.coachId);
-      
-      // Generate training plan using Pace Brain
-      const planData = paceBrain.generateTrainingPlan(user, goal, coach, drills);
-      
-      // Create training plan in database
-      const plan = createTrainingPlan(user.id, goal.id, coach.id, planData);
-      setCurrentPlan(plan);
-      
-      // Update last viewed goal
-      setLastViewedGoal(user.id, goal.id);
-      
-      setCurrentStep('training-plan');
-    } catch (error) {
-      console.error('Error creating training plan:', error);
-      alert(error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleGoalSelect = (goal) => {
-    setCurrentGoal(goal);
-    const plan = getPlanByGoal(goal.id);
-    setCurrentPlan(plan);
-    const coach = getCoach(goal.coachId);
-    setSelectedCoach(coach);
-    setLastViewedGoal(user.id, goal.id);
-    setCurrentStep('training-plan');
-  };
-
-  const handleLogSession = (logData) => {
-    createLog(logData);
-    
-    // Refresh goal to get updated completedSessions
-    const updatedGoal = getGoal(currentGoal.id);
-    setCurrentGoal(updatedGoal);
-    
-    // Adapt the plan based on feedback
-    if (currentPlan) {
-      const adaptedPlan = paceBrain.adaptPlan(currentPlan, logData, user);
-      setCurrentPlan(adaptedPlan);
-    }
-  };
-
-  const handleNavigation = (step) => {
-    setCurrentStep(step);
-  };
-
-  const handleProfileUpdate = (updatedData) => {
-    const updatedUser = updateUser(user.id, updatedData);
-    setUser(updatedUser);
-  };
-
-  const handleNewGoal = () => {
-    setSelectedCoach(null);
-    setIsCustomPlan(false);
-    setCurrentStep('coach-selection');
-  };
-
-  const handleCustomPlanStart = () => {
-    setIsCustomPlan(true);
-    setCurrentStep('custom-plan-builder');
-  };
-
-  const handleCustomPlanSave = (customPlan) => {
-    // Create a goal for the custom plan
-    const goal = createGoal(user.id, {
-      description: customPlan.name || 'Custom Training Plan',
-      timeframe: `${customPlan.totalWeeks} weeks`,
-      coachId: 'custom',
-      availability: {},
-      isCustomPlan: true
-    });
-    
-    // Save the plan
-    const plan = createTrainingPlan(user.id, goal.id, 'custom', customPlan);
-    
-    setCurrentGoal(goal);
-    setCurrentPlan(plan);
-    setLastViewedGoal(user.id, goal.id);
-    setIsCustomPlan(false);
-    setCurrentStep('training-plan');
-  };
-
-  const resetApp = () => {
-    localStorage.removeItem('paceHoopsUserId');
+  const handleLogout = () => {
     setUser(null);
-    setSelectedCoach(null);
-    setCurrentGoal(null);
-    setCurrentPlan(null);
-    setCurrentStep('onboarding');
+    setCurrentTeam(null);
+    setCurrentView('dashboard');
+    localStorage.removeItem('paceHoopsUserId');
+  };
+
+  const handleTeamChange = (team) => {
+    setCurrentTeam(team);
   };
 
   const refreshUser = () => {
     if (user) {
-      const refreshedUser = getUser(user.id);
-      setUser(refreshedUser);
+      const updated = getUser(user.id);
+      setUser(updated);
     }
   };
 
-  const renderCurrentStep = () => {
-    switch (currentStep) {
-      case 'onboarding':
+  const refreshTeam = () => {
+    if (currentTeam) {
+      const updated = getTeam(currentTeam.id);
+      setCurrentTeam(updated);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-white text-lg">Loading Pace Hoops...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AuthScreen onLogin={handleLogin} />;
+  }
+
+  const renderCoachView = () => {
+    if (!currentTeam) {
+      return (
+        <CoachDashboard 
+          user={user} 
+          onTeamCreated={(team) => setCurrentTeam(team)}
+          refreshUser={refreshUser}
+        />
+      );
+    }
+
+    switch (currentView) {
+      case 'dashboard':
         return (
-          <UserOnboarding 
-            onComplete={handleUserOnboardingComplete}
+          <CoachDashboard 
+            user={user} 
+            team={currentTeam}
+            onTeamChange={handleTeamChange}
+            refreshUser={refreshUser}
+            refreshTeam={refreshTeam}
           />
         );
-      
-      case 'coach-selection':
+      case 'roster':
         return (
-          <CoachSelection
-            coaches={coaches}
-            selectedCoach={selectedCoach}
-            onSelectCoach={handleCoachSelection}
+          <CoachRoster 
+            user={user} 
+            team={currentTeam}
+            refreshTeam={refreshTeam}
           />
         );
-      
-      case 'goal-input':
+      case 'assignments':
         return (
-          <GoalInput
-            coach={selectedCoach}
-            user={user}
-            onSubmitGoal={handleGoalSubmission}
-            isLoading={isLoading}
-            onBack={() => setCurrentStep('coach-selection')}
+          <CoachAssignments 
+            user={user} 
+            team={currentTeam}
+            refreshTeam={refreshTeam}
           />
         );
-      
-      case 'goals':
+      case 'stats':
         return (
-          <Goals
-            user={user}
-            onSelectGoal={handleGoalSelect}
-            onNewGoal={handleNewGoal}
-            onCustomPlan={handleCustomPlanStart}
-            onRefresh={refreshUser}
+          <CoachStats 
+            user={user} 
+            team={currentTeam}
           />
         );
-      
-      case 'custom-plan-builder':
+      case 'schedule':
         return (
-          <CustomPlanBuilder
-            user={user}
-            onSavePlan={handleCustomPlanSave}
-            onBack={() => setCurrentStep('goals')}
+          <CoachSchedule 
+            user={user} 
+            team={currentTeam}
           />
         );
-      
-      case 'training-plan':
+      case 'chat':
         return (
-          <TrainingPlan
-            plan={currentPlan}
-            coach={selectedCoach}
-            goal={currentGoal}
-            user={user}
-            onLogSession={handleLogSession}
-            onRefreshGoal={() => {
-              const updated = getGoal(currentGoal.id);
-              setCurrentGoal(updated);
-            }}
+          <CoachChat 
+            user={user} 
+            team={currentTeam}
           />
         );
-      
-      case 'profile':
-        return (
-          <Profile
-            user={user}
-            onUpdate={handleProfileUpdate}
-            onLogout={resetApp}
-          />
-        );
-      
       default:
-        return null;
+        return (
+          <CoachDashboard 
+            user={user} 
+            team={currentTeam}
+            onTeamChange={handleTeamChange}
+            refreshUser={refreshUser}
+            refreshTeam={refreshTeam}
+          />
+        );
+    }
+  };
+
+  const renderPlayerView = () => {
+    if (!currentTeam) {
+      return (
+        <PlayerDashboard 
+          user={user}
+          onTeamJoined={(team) => {
+            setCurrentTeam(team);
+            refreshUser();
+          }}
+        />
+      );
+    }
+
+    switch (currentView) {
+      case 'dashboard':
+        return (
+          <PlayerDashboard 
+            user={user} 
+            team={currentTeam}
+            refreshUser={refreshUser}
+          />
+        );
+      case 'assignments':
+        return (
+          <PlayerAssignments 
+            user={user} 
+            team={currentTeam}
+          />
+        );
+      case 'stats':
+        return (
+          <PlayerStats 
+            user={user} 
+            team={currentTeam}
+          />
+        );
+      case 'schedule':
+        return (
+          <PlayerSchedule 
+            user={user} 
+            team={currentTeam}
+          />
+        );
+      case 'chat':
+        return (
+          <PlayerChat 
+            user={user} 
+            team={currentTeam}
+          />
+        );
+      default:
+        return (
+          <PlayerDashboard 
+            user={user} 
+            team={currentTeam}
+            refreshUser={refreshUser}
+          />
+        );
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                <SafeIcon icon={FiTarget} className="w-5 h-5 text-white" />
-              </div>
-              <h1 className="text-xl font-bold text-gray-900">Pace Hoops</h1>
-            </div>
-            
-            {/* Navigation */}
-            {user && (
-              <nav className="hidden md:flex items-center space-x-4">
-                <button
-                  onClick={() => handleNavigation('coach-selection')}
-                  className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
-                    currentStep === 'coach-selection' 
-                      ? 'bg-blue-100 text-blue-700' 
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                  }`}
-                >
-                  <SafeIcon icon={FiHome} className="w-4 h-4" />
-                  <span>Coaches</span>
-                </button>
-                
-                <button
-                  onClick={() => handleNavigation('goals')}
-                  className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
-                    currentStep === 'goals' 
-                      ? 'bg-blue-100 text-blue-700' 
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                  }`}
-                >
-                  <SafeIcon icon={FiList} className="w-4 h-4" />
-                  <span>Goals</span>
-                </button>
-                
-                <button
-                  onClick={() => handleNavigation('training-plan')}
-                  className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
-                    currentStep === 'training-plan' 
-                      ? 'bg-blue-100 text-blue-700' 
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                  }`}
-                  disabled={!currentPlan}
-                >
-                  <SafeIcon icon={FiActivity} className="w-4 h-4" />
-                  <span>Training</span>
-                </button>
-                
-                <button
-                  onClick={() => handleNavigation('profile')}
-                  className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
-                    currentStep === 'profile' 
-                      ? 'bg-blue-100 text-blue-700' 
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                  }`}
-                >
-                  <SafeIcon icon={FiUser} className="w-4 h-4" />
-                  <span>Profile</span>
-                </button>
-              </nav>
-            )}
-            
-            {/* User Info */}
-            {user && (
-              <div className="flex items-center space-x-4">
-                <span className="text-sm text-gray-600 hidden sm:block">
-                  {user.name} {user.isPremium && <span className="text-yellow-600">⭐ Premium</span>}
-                </span>
-              </div>
-            )}
-          </div>
-          
-          {/* Mobile Navigation */}
-          {user && (
-            <nav className="md:hidden flex items-center justify-around py-2 border-t border-gray-100">
-              <button
-                onClick={() => handleNavigation('coach-selection')}
-                className={`flex flex-col items-center p-2 ${
-                  currentStep === 'coach-selection' ? 'text-blue-600' : 'text-gray-500'
-                }`}
-              >
-                <SafeIcon icon={FiHome} className="w-5 h-5" />
-                <span className="text-xs mt-1">Coaches</span>
-              </button>
-              
-              <button
-                onClick={() => handleNavigation('goals')}
-                className={`flex flex-col items-center p-2 ${
-                  currentStep === 'goals' ? 'text-blue-600' : 'text-gray-500'
-                }`}
-              >
-                <SafeIcon icon={FiList} className="w-5 h-5" />
-                <span className="text-xs mt-1">Goals</span>
-              </button>
-              
-              <button
-                onClick={() => handleNavigation('training-plan')}
-                className={`flex flex-col items-center p-2 ${
-                  currentStep === 'training-plan' ? 'text-blue-600' : 'text-gray-500'
-                }`}
-                disabled={!currentPlan}
-              >
-                <SafeIcon icon={FiActivity} className="w-5 h-5" />
-                <span className="text-xs mt-1">Training</span>
-              </button>
-              
-              <button
-                onClick={() => handleNavigation('profile')}
-                className={`flex flex-col items-center p-2 ${
-                  currentStep === 'profile' ? 'text-blue-600' : 'text-gray-500'
-                }`}
-              >
-                <SafeIcon icon={FiUser} className="w-5 h-5" />
-                <span className="text-xs mt-1">Profile</span>
-              </button>
-            </nav>
-          )}
-        </div>
-      </header>
+    <div className="min-h-screen bg-slate-900">
+      {/* Navigation */}
+      <Navigation 
+        user={user}
+        team={currentTeam}
+        currentView={currentView}
+        onViewChange={setCurrentView}
+        onLogout={handleLogout}
+      />
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="pb-20 md:pb-0 md:pl-64">
         <AnimatePresence mode="wait">
           <motion.div
-            key={currentStep}
-            initial={{ opacity: 0, y: 20 }}
+            key={currentView}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.3 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
           >
-            {isLoading ? (
-              <div className="flex items-center justify-center py-20">
-                <div className="text-center">
-                  <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                  <p className="text-gray-600">Generating your personalized training plan...</p>
-                </div>
-              </div>
-            ) : (
-              renderCurrentStep()
-            )}
+            {user.role === 'coach' ? renderCoachView() : renderPlayerView()}
           </motion.div>
         </AnimatePresence>
       </main>
-
-      {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 mt-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="text-center text-sm text-gray-500">
-            <p>&copy; 2024 Pace Hoops. Powered by AI-driven basketball training.</p>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }
