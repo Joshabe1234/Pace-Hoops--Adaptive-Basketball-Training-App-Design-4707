@@ -13,68 +13,127 @@ import {
 const PlayerDashboard = ({ user, team, onTeamJoined, refreshUser }) => {
   const [joinCode, setJoinCode] = useState('');
   const [error, setError] = useState('');
+  const [showJoinTeam, setShowJoinTeam] = useState(false);
 
-  // If no team, show join team flow
+  const handleJoinTeam = () => {
+    setError('');
+    if (!joinCode || joinCode.trim().length === 0) {
+      setError('Please enter a team code');
+      return;
+    }
+    
+    const foundTeam = getTeamByJoinCode(joinCode);
+    if (!foundTeam) {
+      setError('Invalid team code. Please check with your coach.');
+      return;
+    }
+    
+    addPlayerToTeam(foundTeam.id, user.id);
+    if (refreshUser) refreshUser();
+    onTeamJoined(foundTeam);
+  };
+
+  const stats = getPlayerStats(user.id);
+
+  // If no team, show dashboard with option to join
   if (!team) {
-    const handleJoinTeam = () => {
-      setError('');
-      const foundTeam = getTeamByJoinCode(joinCode);
-      if (!foundTeam) {
-        setError('Invalid team code. Please check with your coach.');
-        return;
-      }
-      
-      addPlayerToTeam(foundTeam.id, user.id);
-      onTeamJoined(foundTeam);
-    };
-
     return (
-      <div className="min-h-screen p-6 flex items-center justify-center">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="max-w-md w-full bg-slate-800 rounded-2xl p-8 border border-slate-700"
-        >
-          <div className="text-center mb-8">
-            <div className="w-20 h-20 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span className="text-4xl">🏀</span>
+      <div className="p-6 space-y-6">
+        {/* Header */}
+        <div>
+          <h1 className="text-2xl font-bold text-white">Hey, {user.name?.split(' ')[0]}!</h1>
+          <p className="text-slate-400">Welcome to Pace Hoops</p>
+        </div>
+
+        {/* Join Team Card */}
+        <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/20 border border-blue-500/30 rounded-xl p-6">
+          <div className="flex items-center space-x-3 mb-4">
+            <div className="w-12 h-12 bg-blue-500/30 rounded-xl flex items-center justify-center">
+              <span className="text-2xl">👥</span>
             </div>
-            <h2 className="text-2xl font-bold text-white mb-2">Join Your Team</h2>
-            <p className="text-slate-400">Enter the code from your coach</p>
+            <div>
+              <h2 className="text-lg font-semibold text-white">Join a Team</h2>
+              <p className="text-blue-300 text-sm">Enter your coach's team code to get started</p>
+            </div>
           </div>
 
-          <div className="space-y-4">
-            <input
-              type="text"
-              value={joinCode}
-              onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-              placeholder="ABC123"
-              maxLength={6}
-              className="w-full p-4 bg-slate-700 border border-slate-600 rounded-xl text-white text-center text-2xl tracking-widest font-mono placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-
-            {error && (
-              <p className="text-red-400 text-sm text-center">{error}</p>
-            )}
-
+          {showJoinTeam ? (
+            <div className="space-y-4">
+              <input
+                type="text"
+                value={joinCode}
+                onChange={(e) => {
+                  setJoinCode(e.target.value.toUpperCase());
+                  setError('');
+                }}
+                placeholder="ABC123"
+                maxLength={6}
+                className="w-full p-4 bg-slate-800 border border-slate-700 rounded-xl text-white text-center text-2xl tracking-widest font-mono placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              {error && (
+                <p className="text-red-400 text-sm text-center">{error}</p>
+              )}
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => {
+                    setShowJoinTeam(false);
+                    setJoinCode('');
+                    setError('');
+                  }}
+                  className="flex-1 p-3 bg-slate-700 text-white rounded-xl font-medium hover:bg-slate-600 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleJoinTeam}
+                  disabled={joinCode.length !== 6}
+                  className="flex-1 p-3 bg-blue-500 text-white rounded-xl font-medium hover:bg-blue-400 transition-colors disabled:opacity-50"
+                >
+                  Join Team
+                </button>
+              </div>
+            </div>
+          ) : (
             <button
-              onClick={handleJoinTeam}
-              disabled={joinCode.length !== 6}
-              className="w-full p-4 bg-blue-500 text-white rounded-xl font-semibold hover:bg-blue-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => setShowJoinTeam(true)}
+              className="w-full p-3 bg-blue-500 text-white rounded-xl font-medium hover:bg-blue-400 transition-colors"
             >
-              Join Team
+              Enter Team Code
             </button>
+          )}
+        </div>
+
+        {/* Solo Training Stats */}
+        <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+          <h2 className="text-lg font-semibold text-white mb-4">Your Stats</h2>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-slate-700/50 rounded-xl p-4 text-center">
+              <p className="text-3xl font-bold text-white">{stats.totalLogs}</p>
+              <p className="text-sm text-slate-400">Workouts</p>
+            </div>
+            <div className="bg-slate-700/50 rounded-xl p-4 text-center">
+              <p className="text-3xl font-bold text-white">{stats.shooting.percentage || '--'}%</p>
+              <p className="text-sm text-slate-400">Shooting</p>
+            </div>
           </div>
-        </motion.div>
+        </div>
+
+        {/* Info Card */}
+        <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+          <h3 className="font-semibold text-white mb-2">Training Without a Team</h3>
+          <p className="text-slate-400 text-sm">
+            You can still use Pace Hoops to track your individual workouts. Once you join a team, 
+            your coach will be able to assign drills and track your progress.
+          </p>
+        </div>
       </div>
     );
   }
 
+  // Has a team - show full dashboard
   const assignments = getPlayerAssignments(user.id, team.id);
-  const stats = getPlayerStats(user.id);
   const schedule = getTeamSchedule(team.id, { from: new Date() });
   const coach = getUser(team.coachId);
-
   const pendingAssignments = assignments.filter(a => new Date(a.dueDate) >= new Date());
 
   return (
