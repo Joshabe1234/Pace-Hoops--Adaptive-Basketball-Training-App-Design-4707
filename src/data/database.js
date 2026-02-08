@@ -1,638 +1,968 @@
-// Pace Hoops Database - Full featured version
+// Pace Hoops Coach Platform Database
 export const database = {
-  users: new Map(),
-  coaches: new Map(),
-  drills: new Map(),
-  sessions: new Map(),
-  logs: new Map(),
-  goals: new Map(),
-  plans: new Map()
+  users: new Map(),        // coaches and players
+  teams: new Map(),        // coach's teams
+  drills: new Map(),       // drill library
+  workouts: new Map(),     // workout/conditioning library
+  assignments: new Map(),  // coach-assigned work
+  logs: new Map(),         // player completion logs
+  messages: new Map(),     // chat messages
+  schedules: new Map(),    // team schedules
+  aiRecommendations: new Map() // AI-generated insights
 };
 
-// Initialize with sample data
+// Initialize drill and workout library
 export const initializeDatabase = () => {
-  // Sample coaches with CORRECT images
-  const coaches = [
-    {
-      id: 'phil-jackson',
-      name: 'Phil Jackson',
-      title: 'The Zen Master',
-      specialty: 'Mental Focus & Team Basketball',
-      philosophy: 'Mindful basketball with emphasis on mental preparation, team chemistry, and fundamental excellence.',
-      image: 'https://www.basketball-reference.com/req/202106291/images/headshots/jacksph01.jpg',
-      methods: ['mindfulness', 'triangle-system', 'leadership-development']
-    },
-    {
-      id: 'steve-kerr',
-      name: 'Steve Kerr',
-      title: 'The Innovator',
-      specialty: 'Modern Offense & Shooting',
-      philosophy: 'Fast-paced, three-point focused offense with emphasis on ball movement and spacing.',
-      image: 'https://www.basketball-reference.com/req/202106291/images/headshots/kerrst01.jpg',
-      methods: ['motion-offense', 'analytics-driven', 'player-empowerment']
-    },
-    {
-      id: 'gregg-popovich',
-      name: 'Gregg Popovich',
-      title: 'The Fundamentalist',
-      specialty: 'Defense & Fundamentals',
-      philosophy: 'Disciplined approach focusing on defensive excellence, fundamentals, and basketball IQ.',
-      image: 'https://www.basketball-reference.com/req/202106291/images/headshots/popovgr99c.jpg',
-      methods: ['defensive-systems', 'fundamental-focus', 'mental-toughness']
-    },
-    {
-      id: 'kobe-bryant',
-      name: 'Kobe Bryant',
-      title: 'The Mamba Mentality',
-      specialty: 'Individual Excellence & Work Ethic',
-      philosophy: 'Relentless pursuit of perfection through detailed skill work and mental fortitude.',
-      image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/Kobe_Bryant_2014.jpg/440px-Kobe_Bryant_2014.jpg',
-      methods: ['mamba-mentality', 'skill-obsession', 'perfectionism']
-    }
-  ];
-
-  // Detailed drills with videos, steps, and cardio/skill classification
+  // Basketball Skill Drills
   const drills = [
-    // Phil Jackson Drills
+    // Shooting Drills
     {
-      id: 'triangle-offense',
-      name: 'Triangle Offense Flow',
-      coachId: 'phil-jackson',
-      category: 'offense',
-      type: 'skill',
-      difficulty: 'intermediate',
-      duration: 20,
-      description: 'Practice the triangle offense principles with proper spacing and reads.',
-      videoUrl: 'https://www.youtube.com/watch?v=8YBnPTqoASU',
-      requiresAccuracyLog: false,
-      steps: [
-        'Set up in triangle formation: post player on block, wing player at free throw line extended, corner player in the corner',
-        'Entry pass to the wing - post player seals defender and calls for ball',
-        'Wing has 3 options: entry to post, skip pass to corner, or dribble penetration',
-        'After each pass, players rotate to maintain triangle shape',
-        'Practice reading the defense: if defender fronts post, lob pass; if defender plays behind, direct entry',
-        'Run 10 possessions from each side, focusing on crisp passes and proper footwork'
-      ],
-      modifications: {
-        beginner: 'Stationary triangle formation practice without defense',
-        injury: 'Upper body passing only - no cutting or posting'
-      }
-    },
-    {
-      id: 'meditation-focus',
-      name: 'Mindfulness Shooting',
-      coachId: 'phil-jackson',
+      id: 'form-shooting',
+      name: 'Form Shooting',
       category: 'shooting',
       type: 'skill',
       difficulty: 'beginner',
       duration: 15,
-      description: 'Combine meditation techniques with shooting practice for mental focus.',
+      description: 'Close-range shooting focusing on perfect form and mechanics.',
       videoUrl: 'https://www.youtube.com/watch?v=Hj5hZt6rZGc',
       requiresAccuracyLog: true,
+      metrics: ['makes', 'attempts'],
       steps: [
-        'Find a quiet spot on the court. Close your eyes and take 10 deep breaths',
-        'Visualize your perfect shot form: feet set, elbow aligned, smooth release, perfect arc',
-        'Open your eyes. Take your first shot focusing ONLY on your follow-through',
-        'After each make or miss, take one breath before the next shot',
-        'Shoot 20 shots from the free throw line, logging makes/attempts',
-        'End with 2 minutes of eyes-closed visualization of your best shots'
-      ],
-      modifications: {
-        beginner: 'Start with 10 shots instead of 20',
-        injury: 'Visualization only if shooting is restricted'
-      }
+        'Stand 3 feet from the basket, feet shoulder-width apart',
+        'Ball in shooting hand only, elbow under the ball',
+        'Focus on straight elbow, flick of the wrist, hold follow-through',
+        'Make 10 shots before moving back to 5 feet',
+        'Make 10 more, then move to 8 feet',
+        'Track makes/attempts at each distance'
+      ]
     },
     {
-      id: 'phil-cardio-mindful-runs',
-      name: 'Mindful Court Runs',
-      coachId: 'phil-jackson',
-      category: 'conditioning',
-      type: 'cardio',
+      id: 'free-throws',
+      name: 'Free Throw Routine',
+      category: 'shooting',
+      type: 'skill',
       difficulty: 'beginner',
-      duration: 12,
-      description: 'Cardiovascular conditioning with breath awareness and mental focus.',
-      videoUrl: 'https://www.youtube.com/watch?v=RzH8RjXrOLU',
-      requiresAccuracyLog: false,
+      duration: 15,
+      description: 'Consistent free throw practice with pre-shot routine.',
+      videoUrl: 'https://www.youtube.com/watch?v=YFJ5aI5vF6Y',
+      requiresAccuracyLog: true,
+      metrics: ['makes', 'attempts'],
       steps: [
-        'Start at baseline. Jog to half court while breathing in through nose',
-        'Jog from half court to opposite baseline while breathing out through mouth',
-        'Sprint back to start, focusing on powerful but controlled breathing',
-        'Rest 30 seconds with deep breathing',
-        'Repeat 6 times, maintaining awareness of your breath throughout',
-        'Cool down with a slow walk around the court, letting heart rate settle'
-      ],
-      modifications: {
-        beginner: 'Walk instead of jog, 4 reps instead of 6',
-        injury: 'Upper body: stationary deep breathing only'
-      }
+        'Establish your routine: dribbles, breath, focus point',
+        'Same routine every single time',
+        'Shoot sets of 10, track percentage',
+        'Goal: 70%+ consistency',
+        'Add pressure: must make 2 in a row to finish'
+      ]
     },
-    
-    // Steve Kerr Drills
     {
-      id: 'three-point-shooting',
-      name: 'Splash Brothers Shooting',
-      coachId: 'steve-kerr',
+      id: 'spot-shooting',
+      name: 'Spot Shooting (5 Spots)',
       category: 'shooting',
       type: 'skill',
       difficulty: 'intermediate',
-      duration: 25,
-      description: 'High-volume three-point shooting with game-like movement.',
+      duration: 20,
+      description: 'Catch and shoot from 5 spots around the arc.',
       videoUrl: 'https://www.youtube.com/watch?v=YyqkYFzQ9Rk',
       requiresAccuracyLog: true,
+      metrics: ['makes', 'attempts'],
       steps: [
-        'Warm up: 10 form shots from 5 feet, focus on hand placement and release',
-        'Corner 3s (right): Catch and shoot 10 shots, log makes',
-        'Wing 3s (right): Catch and shoot 10 shots, log makes',
-        'Top of key: Catch and shoot 10 shots, log makes',
-        'Wing 3s (left): Catch and shoot 10 shots, log makes',
-        'Corner 3s (left): Catch and shoot 10 shots, log makes',
-        'Bonus round: 5 shots off a one-dribble pull-up from each spot',
-        'Track total: aim for 35/50 (70%) as your baseline'
-      ],
-      modifications: {
-        beginner: 'Move in to college 3-point line, 5 shots per spot',
-        injury: 'Stationary shooting only, reduce volume by half'
-      }
+        'Start in right corner, catch and shoot 10 shots',
+        'Move to right wing, 10 shots',
+        'Top of key, 10 shots',
+        'Left wing, 10 shots',
+        'Left corner, 10 shots',
+        'Track makes/attempts per spot and total'
+      ]
     },
     {
-      id: 'ball-movement',
-      name: 'Warriors Ball Movement',
-      coachId: 'steve-kerr',
-      category: 'passing',
+      id: 'off-dribble-shooting',
+      name: 'Off-Dribble Pull-Ups',
+      category: 'shooting',
       type: 'skill',
-      difficulty: 'intermediate',
+      difficulty: 'advanced',
       duration: 20,
-      description: 'Practice quick ball movement and decision making.',
+      description: 'Game-speed pull-up jumpers off the dribble.',
+      videoUrl: 'https://www.youtube.com/watch?v=YyqkYFzQ9Rk',
+      requiresAccuracyLog: true,
+      metrics: ['makes', 'attempts'],
+      steps: [
+        'Start at half court, attack with 2-3 dribbles',
+        'Pull up at elbow for mid-range jumper',
+        '10 from right side, 10 from left side',
+        'Add crossover into pull-up: 10 each side',
+        'Track total makes/attempts'
+      ]
+    },
+
+    // Ball Handling Drills
+    {
+      id: 'stationary-handles',
+      name: 'Stationary Ball Handling',
+      category: 'ball-handling',
+      type: 'skill',
+      difficulty: 'beginner',
+      duration: 10,
+      description: 'Basic ball handling drills in place.',
       videoUrl: 'https://www.youtube.com/watch?v=4C3oZpM5h7k',
       requiresAccuracyLog: false,
+      metrics: ['completed'],
       steps: [
-        'Set up 4 cones in a square (15 feet apart) representing teammates',
-        'Start with ball at top cone. Pass and relocate to an open cone',
-        'Rule: ball cannot be held more than 2 seconds',
-        'Rule: no dribbling allowed - pass or shoot only',
-        'Practice chest passes, bounce passes, and skip passes',
-        'Add a "defender" cone in middle - passes must go around it',
-        'Run for 5 minutes continuously, counting total passes completed'
-      ],
-      modifications: {
-        beginner: '3-cone setup with slower pace, 4-second hold allowed',
-        injury: 'Seated passing drill if lower body injury'
-      }
+        'Pound dribbles: 30 seconds each hand, as hard as possible',
+        'Crossovers: 30 seconds, low and tight',
+        'Between the legs: 30 seconds each direction',
+        'Behind the back: 30 seconds each direction',
+        'Combo: cross-between-behind, 1 minute continuous'
+      ]
     },
     {
-      id: 'kerr-cardio-transition',
-      name: 'Transition Sprint Series',
-      coachId: 'steve-kerr',
-      category: 'conditioning',
-      type: 'cardio',
+      id: 'two-ball-dribbling',
+      name: 'Two Ball Dribbling',
+      category: 'ball-handling',
+      type: 'skill',
+      difficulty: 'intermediate',
+      duration: 10,
+      description: 'Advanced ball handling with two basketballs.',
+      videoUrl: 'https://www.youtube.com/watch?v=4C3oZpM5h7k',
+      requiresAccuracyLog: false,
+      metrics: ['completed'],
+      steps: [
+        'Both balls together: 30 seconds',
+        'Alternating: 30 seconds',
+        'One high, one low: 30 seconds',
+        'Both crossover together: 30 seconds',
+        'Walking forward with alternating: length of court x 4'
+      ]
+    },
+    {
+      id: 'full-court-handles',
+      name: 'Full Court Ball Handling',
+      category: 'ball-handling',
+      type: 'skill',
       difficulty: 'intermediate',
       duration: 15,
-      description: 'Fast-break conditioning to build speed and stamina for up-tempo play.',
-      videoUrl: 'https://www.youtube.com/watch?v=O0gQm3lT8DQ',
+      description: 'Ball handling while moving full court.',
+      videoUrl: 'https://www.youtube.com/watch?v=4C3oZpM5h7k',
       requiresAccuracyLog: false,
+      metrics: ['completed'],
       steps: [
-        'Start under basket. Sprint to opposite 3-point line (simulating fast break)',
-        'Touch the line, immediately backpedal to half court (defensive transition)',
-        'Sprint forward again to the nearest 3-point line',
-        'Shuffle laterally across the 3-point arc',
-        'Sprint back to starting position',
-        'Rest 45 seconds. That is 1 rep.',
-        'Complete 6 reps total, tracking your time on each'
-      ],
-      modifications: {
-        beginner: 'Jog instead of sprint, 4 reps, 60-second rest',
-        injury: 'Walk through the pattern for active recovery'
-      }
+        'Right hand only down, left hand back',
+        'Crossover at each free throw line and half court',
+        'Between legs at each line',
+        'Behind back at each line',
+        'Speed dribble: baseline to baseline under 4 seconds',
+        'Repeat sequence 4 times'
+      ]
     },
-    
-    // Gregg Popovich Drills
+
+    // Defense Drills
     {
-      id: 'defensive-stance',
-      name: 'Spurs Defense Fundamentals',
-      coachId: 'gregg-popovich',
+      id: 'defensive-slides',
+      name: 'Defensive Slide Series',
       category: 'defense',
       type: 'skill',
       difficulty: 'beginner',
-      duration: 15,
-      description: 'Master the fundamentals of defensive positioning and movement.',
+      duration: 10,
+      description: 'Lateral movement and defensive positioning.',
       videoUrl: 'https://www.youtube.com/watch?v=2QK4VQ5u4fA',
       requiresAccuracyLog: false,
+      metrics: ['completed'],
       steps: [
-        'Stance check: feet shoulder-width apart, knees bent, butt down, hands active',
-        'Hold perfect defensive stance for 30 seconds without standing up',
-        'Lateral slides: 10 slides right, 10 slides left, staying in stance',
-        'Close-out drill: start at rim, sprint and breakdown at 3-point line, 10 reps',
-        'Drop step practice: react to imaginary drive, open hips, 10 each direction',
-        'Combine: close out → slide left → slide right → drop step. 5 full sequences'
-      ],
-      modifications: {
-        beginner: 'Hold stance 15 seconds, reduce reps to 5 each',
-        injury: 'Upper body positioning only while seated'
-      }
+        'Stance check: low, wide, hands active',
+        'Sideline to sideline slides, stay low, 5 reps',
+        'Zig-zag slides: baseline to half court, 4 reps',
+        'Close-out drill: sprint, breakdown, slide, 10 reps',
+        'Drop step reaction: 10 each direction'
+      ]
     },
     {
-      id: 'fundamental-shooting',
-      name: 'Spurs Fundamental Shooting',
-      coachId: 'gregg-popovich',
-      category: 'shooting',
+      id: 'one-on-one-defense',
+      name: '1-on-1 Defensive Shell',
+      category: 'defense',
+      type: 'skill',
+      difficulty: 'intermediate',
+      duration: 15,
+      description: 'Positioning and footwork against offensive player.',
+      videoUrl: 'https://www.youtube.com/watch?v=2QK4VQ5u4fA',
+      requiresAccuracyLog: false,
+      metrics: ['completed'],
+      steps: [
+        'Partner or cone as offensive player',
+        'Maintain arm-length distance',
+        'Mirror movements: 2 minutes',
+        'React to drives: cut off without reaching, 10 reps',
+        'Contest shots without fouling: 10 reps'
+      ]
+    },
+
+    // Passing Drills
+    {
+      id: 'wall-passing',
+      name: 'Wall Passing Series',
+      category: 'passing',
       type: 'skill',
       difficulty: 'beginner',
-      duration: 20,
-      description: 'Perfect your shooting form with disciplined, repetitive practice.',
-      videoUrl: 'https://www.youtube.com/watch?v=YFJ5aI5vF6Y',
-      requiresAccuracyLog: true,
-      steps: [
-        'Form shooting (3 feet from rim): 20 shots, one hand only, perfect arc',
-        'Add guide hand: 20 shots from 5 feet, focus on straight elbow',
-        'Free throws: 20 shots with full routine (3 dribbles, deep breath, shoot)',
-        'Elbow jumpers: 10 shots from each elbow, catch and shoot',
-        'Short corner: 10 shots from each short corner',
-        'Track all makes/attempts. Goal: 70% overall'
-      ],
-      modifications: {
-        beginner: 'Reduce to 10 shots per station',
-        injury: 'Chair shooting if needed for leg injuries'
-      }
-    },
-    {
-      id: 'pop-cardio-defensive',
-      name: 'Defensive Slides Conditioning',
-      coachId: 'gregg-popovich',
-      category: 'conditioning',
-      type: 'cardio',
-      difficulty: 'intermediate',
-      duration: 12,
-      description: 'Build defensive endurance through lateral movement conditioning.',
-      videoUrl: 'https://www.youtube.com/watch?v=RzH8RjXrOLU',
+      duration: 10,
+      description: 'Passing accuracy and speed against a wall.',
+      videoUrl: 'https://www.youtube.com/watch?v=4C3oZpM5h7k',
       requiresAccuracyLog: false,
+      metrics: ['completed'],
       steps: [
-        'Start in defensive stance at sideline',
-        'Defensive slide to opposite sideline (stay low, dont cross feet)',
-        'Immediately slide back to start',
-        'Drop into 5 push-ups',
-        'Stand and repeat sequence',
-        'Complete 5 rounds with 30-second rest between rounds',
-        'Focus: stay in stance the ENTIRE slide, no standing up'
-      ],
-      modifications: {
-        beginner: '3 rounds, 3 push-ups, 45-second rest',
-        injury: 'Upper body: push-ups only. Lower body: seated core work'
-      }
+        'Chest passes: 50 reps, hit same spot on wall',
+        'Bounce passes: 50 reps, ball should hit 2/3 distance',
+        'One-hand push passes: 25 each hand',
+        'Overhead passes: 25 reps',
+        'Speed round: as many chest passes in 30 seconds'
+      ]
     },
-    
-    // Kobe Bryant Drills
+
+    // Footwork Drills
     {
-      id: 'footwork-mastery',
-      name: 'Mamba Footwork',
-      coachId: 'kobe-bryant',
+      id: 'triple-threat',
+      name: 'Triple Threat Moves',
+      category: 'footwork',
+      type: 'skill',
+      difficulty: 'intermediate',
+      duration: 15,
+      description: 'Offensive footwork from triple threat position.',
+      videoUrl: 'https://www.youtube.com/watch?v=YFJ5aI5vF6Y',
+      requiresAccuracyLog: false,
+      metrics: ['completed'],
+      steps: [
+        'Triple threat stance: ball protected, knees bent',
+        'Jab step right, jab step left: 20 total',
+        'Jab and go: attack opposite direction, 10 each way',
+        'Jab and shoot: pull back into shot, 10 each way',
+        'Shot fake to drive: 10 each direction',
+        'Combine all moves in random sequence: 3 minutes'
+      ]
+    },
+    {
+      id: 'post-moves',
+      name: 'Post Footwork',
       category: 'footwork',
       type: 'skill',
       difficulty: 'advanced',
-      duration: 30,
-      description: 'Detailed footwork patterns for offensive moves - Kobe detail work.',
-      videoUrl: 'https://www.youtube.com/watch?v=YFJ5aI5vF6Y',
-      requiresAccuracyLog: false,
-      steps: [
-        'Triple threat position: 20 reps of jab step right, jab step left',
-        'Jab and go: jab right → one dribble attack left, 10 reps each side',
-        'Jab and shoot: jab step → pull back into jump shot, 10 reps each side',
-        'Pivot series: front pivot to face up, 10 reps; reverse pivot to face up, 10 reps',
-        'Up and under: shot fake → step through, 10 reps each side',
-        'Combination: jab → shot fake → one dribble pull-up, 10 reps each side',
-        'All moves should be GAME SPEED after first 3 reps'
-      ],
-      modifications: {
-        beginner: 'Slow motion practice, 5 reps per move',
-        injury: 'Upper body moves only if leg injury'
-      }
-    },
-    {
-      id: 'shooting-mechanics',
-      name: 'Perfect Shot Mechanics',
-      coachId: 'kobe-bryant',
-      category: 'shooting',
-      type: 'skill',
-      difficulty: 'intermediate',
-      duration: 25,
-      description: 'Obsessive attention to shooting form and consistency.',
-      videoUrl: 'https://www.youtube.com/watch?v=Hj5hZt6rZGc',
-      requiresAccuracyLog: true,
-      steps: [
-        'Mirror work (no ball): Check stance, elbow position, release point - 2 minutes',
-        'One-hand form shots from 3 feet: 20 makes (not attempts - MAKES)',
-        'Add guide hand, same distance: 20 makes',
-        'Move to free throw line: 30 shots, track percentage',
-        'Mid-range right elbow: 15 shots, track percentage',
-        'Mid-range left elbow: 15 shots, track percentage',
-        'Challenge: dont leave until you hit 5 in a row from each elbow'
-      ],
-      modifications: {
-        beginner: 'Focus on form shots only, 10 makes requirement',
-        injury: 'Chair shooting, reduced volume'
-      }
-    },
-    {
-      id: 'kobe-cardio-mamba',
-      name: 'Mamba Conditioning',
-      coachId: 'kobe-bryant',
-      category: 'conditioning',
-      type: 'cardio',
-      difficulty: 'advanced',
-      duration: 18,
-      description: 'High-intensity conditioning inspired by Kobe work ethic.',
-      videoUrl: 'https://www.youtube.com/watch?v=RzH8RjXrOLU',
-      requiresAccuracyLog: false,
-      steps: [
-        '17s: Sideline to sideline, must complete in 17 seconds or less',
-        'Rest only 30 seconds between each 17',
-        'Complete 8 total 17s',
-        'Immediately into: 10 burpees',
-        'Then: suicide drill (baseline → free throw → half → far free throw → far baseline)',
-        'Complete 3 suicides with 45-second rest between',
-        'Cool down: 2-minute light jog and stretching'
-      ],
-      modifications: {
-        beginner: 'Allow 20 seconds per 17, 5 total, skip burpees',
-        injury: 'Upper body: seated boxing movements and core work'
-      }
-    },
-    {
-      id: 'ball-handling-elite',
-      name: 'Elite Ball Handling',
-      coachId: 'kobe-bryant',
-      category: 'ball-handling',
-      type: 'skill',
-      difficulty: 'advanced',
       duration: 20,
-      description: 'Advanced ball handling drills for complete control.',
-      videoUrl: 'https://www.youtube.com/watch?v=4C3oZpM5h7k',
-      requiresAccuracyLog: false,
+      description: 'Low post offensive moves and counters.',
+      videoUrl: 'https://www.youtube.com/watch?v=YFJ5aI5vF6Y',
+      requiresAccuracyLog: true,
+      metrics: ['makes', 'attempts'],
       steps: [
-        'Stationary pound dribbles: 50 right hand, 50 left hand (as hard as possible)',
-        'Crossover series: 30 reps - slow, medium, game speed (10 each)',
-        'Between the legs: 30 reps - alternating, same progression',
-        'Behind the back: 30 reps - same progression',
-        'Combo moves: cross → between → behind, 20 continuous reps',
-        'Two ball dribbling: 2 minutes alternating, 2 minutes simultaneous',
-        'Full court: attack with 3 dribbles max, finishing at rim, 10 reps'
-      ],
-      modifications: {
-        beginner: 'Half the reps, skip two-ball work',
-        injury: 'Stationary dribbling only'
-      }
+        'Drop step baseline: 10 each side',
+        'Drop step middle: 10 each side',
+        'Up and under: 10 each side',
+        'Hook shot: 10 each side',
+        'Face-up jumper from post: 10 attempts',
+        'Track makes on finishing moves'
+      ]
     }
   ];
 
-  // Store coaches and drills
-  coaches.forEach(coach => database.coaches.set(coach.id, coach));
+  // Conditioning/Workout Exercises
+  const workouts = [
+    // Cardio/Conditioning
+    {
+      id: 'suicides',
+      name: 'Suicides (Line Drills)',
+      category: 'conditioning',
+      type: 'cardio',
+      difficulty: 'intermediate',
+      duration: 10,
+      description: 'Classic basketball conditioning drill.',
+      metrics: ['reps', 'time'],
+      steps: [
+        'Start at baseline',
+        'Sprint to free throw line and back',
+        'Sprint to half court and back',
+        'Sprint to far free throw line and back',
+        'Sprint to far baseline and back',
+        'That is 1 rep. Rest 45 seconds. Repeat.'
+      ]
+    },
+    {
+      id: 'seventeens',
+      name: '17s (Sideline to Sideline)',
+      category: 'conditioning',
+      type: 'cardio',
+      difficulty: 'advanced',
+      duration: 10,
+      description: 'Sideline sprints for conditioning.',
+      metrics: ['reps', 'time'],
+      steps: [
+        'Start at sideline',
+        'Sprint to opposite sideline and back',
+        'Must complete 17 touches in under set time',
+        'Typical goal: 17 touches in 60-70 seconds',
+        'Rest 1-2 minutes between sets'
+      ]
+    },
+    {
+      id: 'court-sprints',
+      name: 'Full Court Sprints',
+      category: 'conditioning',
+      type: 'cardio',
+      difficulty: 'beginner',
+      duration: 10,
+      description: 'Baseline to baseline sprinting.',
+      metrics: ['reps', 'time'],
+      steps: [
+        'Sprint baseline to baseline at 100%',
+        'Walk back to start line',
+        'Repeat for set number of reps',
+        'Track time on each sprint'
+      ]
+    },
+
+    // Strength Training
+    {
+      id: 'squats',
+      name: 'Squats',
+      category: 'strength',
+      type: 'lower-body',
+      difficulty: 'beginner',
+      duration: 10,
+      description: 'Fundamental lower body strength exercise.',
+      metrics: ['sets', 'reps', 'weight'],
+      steps: [
+        'Feet shoulder-width apart, toes slightly out',
+        'Keep chest up, core tight',
+        'Lower until thighs parallel to ground',
+        'Drive through heels to stand',
+        'Can be bodyweight, goblet, or barbell'
+      ]
+    },
+    {
+      id: 'lunges',
+      name: 'Lunges',
+      category: 'strength',
+      type: 'lower-body',
+      difficulty: 'beginner',
+      duration: 10,
+      description: 'Single-leg strength and balance.',
+      metrics: ['sets', 'reps', 'weight'],
+      steps: [
+        'Step forward into lunge position',
+        'Both knees at 90 degrees',
+        'Push back to starting position',
+        'Alternate legs or do all one side first',
+        'Can be walking, stationary, or reverse'
+      ]
+    },
+    {
+      id: 'deadlifts',
+      name: 'Deadlifts',
+      category: 'strength',
+      type: 'lower-body',
+      difficulty: 'intermediate',
+      duration: 15,
+      description: 'Posterior chain strength builder.',
+      metrics: ['sets', 'reps', 'weight'],
+      steps: [
+        'Bar over mid-foot, feet hip-width',
+        'Hinge at hips, grip bar outside knees',
+        'Flat back, chest up, shoulders back',
+        'Drive through floor, extend hips',
+        'Control descent back to floor'
+      ]
+    },
+    {
+      id: 'bench-press',
+      name: 'Bench Press',
+      category: 'strength',
+      type: 'upper-body',
+      difficulty: 'intermediate',
+      duration: 15,
+      description: 'Upper body pushing strength.',
+      metrics: ['sets', 'reps', 'weight'],
+      steps: [
+        'Lie flat, eyes under bar',
+        'Grip slightly wider than shoulders',
+        'Unrack, lower to chest with control',
+        'Press up explosively',
+        'Keep feet flat, back slightly arched'
+      ]
+    },
+    {
+      id: 'pull-ups',
+      name: 'Pull-Ups',
+      category: 'strength',
+      type: 'upper-body',
+      difficulty: 'intermediate',
+      duration: 10,
+      description: 'Upper body pulling strength.',
+      metrics: ['sets', 'reps'],
+      steps: [
+        'Hang with arms fully extended',
+        'Pull until chin over bar',
+        'Lower with control',
+        'Can use band assistance if needed',
+        'Vary grip: wide, close, underhand'
+      ]
+    },
+    {
+      id: 'push-ups',
+      name: 'Push-Ups',
+      category: 'strength',
+      type: 'upper-body',
+      difficulty: 'beginner',
+      duration: 5,
+      description: 'Bodyweight pushing exercise.',
+      metrics: ['sets', 'reps'],
+      steps: [
+        'Hands shoulder-width, body straight line',
+        'Lower chest to ground',
+        'Push back up to start',
+        'Keep core tight throughout',
+        'Modify on knees if needed'
+      ]
+    },
+    {
+      id: 'planks',
+      name: 'Planks',
+      category: 'strength',
+      type: 'core',
+      difficulty: 'beginner',
+      duration: 5,
+      description: 'Core stability exercise.',
+      metrics: ['sets', 'time'],
+      steps: [
+        'Forearms on ground, elbows under shoulders',
+        'Body in straight line from head to heels',
+        'Squeeze glutes and core',
+        'Hold for prescribed time',
+        'Add side planks for obliques'
+      ]
+    },
+    {
+      id: 'box-jumps',
+      name: 'Box Jumps',
+      category: 'plyometrics',
+      type: 'explosive',
+      difficulty: 'intermediate',
+      duration: 10,
+      description: 'Explosive lower body power.',
+      metrics: ['sets', 'reps'],
+      steps: [
+        'Stand facing box, feet shoulder-width',
+        'Swing arms and explode onto box',
+        'Land softly with knees bent',
+        'Stand fully, then step down',
+        'Start with lower box, progress height'
+      ]
+    },
+    {
+      id: 'jump-rope',
+      name: 'Jump Rope',
+      category: 'conditioning',
+      type: 'cardio',
+      difficulty: 'beginner',
+      duration: 10,
+      description: 'Footwork and conditioning.',
+      metrics: ['time', 'reps'],
+      steps: [
+        'Basic bounce: 1 minute',
+        'Alternate feet: 1 minute',
+        'High knees: 30 seconds',
+        'Double unders (if able): 30 seconds',
+        'Rest 30 seconds, repeat circuit'
+      ]
+    }
+  ];
+
+  // Store drills and workouts
   drills.forEach(drill => database.drills.set(drill.id, drill));
+  workouts.forEach(workout => database.workouts.set(workout.id, workout));
 };
 
-// User management
+// ============ USER MANAGEMENT ============
+
 export const createUser = (userData) => {
   const userId = `user_${Date.now()}`;
   const user = {
     id: userId,
+    email: userData.email,
     name: userData.name,
-    age: parseInt(userData.age),
-    height: userData.height,
-    weight: userData.weight,
-    skillLevel: userData.skillLevel,
-    athleticism: userData.athleticism,
-    injuries: userData.injuries || 'none',
-    isPremium: false,
+    role: userData.role, // 'coach' or 'player'
     createdAt: new Date(),
-    lastViewedGoalId: null,
-    performanceHistory: [],
-    injuryHistory: []
+    
+    // Coach-specific fields
+    ...(userData.role === 'coach' && {
+      teamIds: [],
+      organization: userData.organization || ''
+    }),
+    
+    // Player-specific fields
+    ...(userData.role === 'player' && {
+      teamId: userData.teamId || null,
+      age: userData.age,
+      position: userData.position || '',
+      height: userData.height || '',
+      weight: userData.weight || '',
+      jerseyNumber: userData.jerseyNumber || ''
+    })
   };
+  
   database.users.set(userId, user);
   return user;
 };
 
-export const getUser = (userId) => {
-  return database.users.get(userId);
+export const getUser = (userId) => database.users.get(userId);
+
+export const getUserByEmail = (email) => {
+  return Array.from(database.users.values()).find(u => u.email === email);
 };
 
 export const updateUser = (userId, updates) => {
   const user = database.users.get(userId);
   if (user) {
-    const updatedUser = { ...user, ...updates, updatedAt: new Date() };
-    database.users.set(userId, updatedUser);
-    return updatedUser;
+    const updated = { ...user, ...updates, updatedAt: new Date() };
+    database.users.set(userId, updated);
+    return updated;
   }
   return null;
 };
 
-// Goal management with current/previous status
-export const createGoal = (userId, goalData) => {
-  const user = getUser(userId);
-  if (!user) throw new Error('User not found');
+// ============ TEAM MANAGEMENT ============
+
+export const createTeam = (coachId, teamData) => {
+  const teamId = `team_${Date.now()}`;
+  const joinCode = generateJoinCode();
   
-  // Check goal limits
-  const currentGoals = getUserGoals(userId).filter(g => g.status === 'current');
-  const limit = user.isPremium ? 20 : 10;
-  
-  if (currentGoals.length >= limit) {
-    throw new Error(`Goal limit reached. ${user.isPremium ? '' : 'Upgrade to premium for 20 goals!'}`);
-  }
-  
-  const goalId = `goal_${Date.now()}`;
-  const goal = {
-    id: goalId,
-    userId,
-    coachId: goalData.coachId,
-    description: goalData.description,
-    timeframe: goalData.timeframe,
-    priority: goalData.priority || 'medium',
-    availability: goalData.availability || {},
-    status: 'current',
-    createdAt: new Date(),
-    completedSessions: [],
-    accuracyLogs: {}
-  };
-  database.goals.set(goalId, goal);
-  
-  // Update user's last viewed goal
-  updateUser(userId, { lastViewedGoalId: goalId });
-  
-  return goal;
-};
-
-export const getGoal = (goalId) => {
-  return database.goals.get(goalId);
-};
-
-export const getUserGoals = (userId) => {
-  return Array.from(database.goals.values()).filter(goal => goal.userId === userId);
-};
-
-export const getCurrentGoals = (userId) => {
-  return getUserGoals(userId).filter(goal => goal.status === 'current');
-};
-
-export const getPreviousGoals = (userId) => {
-  return getUserGoals(userId).filter(goal => goal.status === 'previous');
-};
-
-export const updateGoalStatus = (goalId, status) => {
-  const goal = database.goals.get(goalId);
-  if (goal) {
-    goal.status = status;
-    goal.updatedAt = new Date();
-    database.goals.set(goalId, goal);
-    return goal;
-  }
-  return null;
-};
-
-export const markGoalComplete = (goalId) => {
-  return updateGoalStatus(goalId, 'previous');
-};
-
-export const reactivateGoal = (goalId, userId) => {
-  const user = getUser(userId);
-  const currentGoals = getCurrentGoals(userId);
-  const limit = user.isPremium ? 20 : 10;
-  
-  if (currentGoals.length >= limit) {
-    throw new Error(`Cannot reactivate. Goal limit reached.`);
-  }
-  
-  return updateGoalStatus(goalId, 'current');
-};
-
-// Plan management
-export const createTrainingPlan = (userId, goalId, coachId, planData) => {
-  const planId = `plan_${Date.now()}`;
-  const plan = {
-    id: planId,
-    userId,
-    goalId,
+  const team = {
+    id: teamId,
     coachId,
-    ...planData,
-    createdAt: new Date(),
-    version: 1,
-    status: 'active'
-  };
-  database.plans.set(planId, plan);
-  
-  // Update user's current plan
-  updateUser(userId, { currentPlan: planId });
-  
-  return plan;
-};
-
-export const getPlan = (planId) => {
-  return database.plans.get(planId);
-};
-
-export const getPlanByGoal = (goalId) => {
-  return Array.from(database.plans.values()).find(plan => plan.goalId === goalId);
-};
-
-export const updatePlan = (planId, updates) => {
-  const plan = database.plans.get(planId);
-  if (plan) {
-    const updatedPlan = { ...plan, ...updates, updatedAt: new Date(), version: plan.version + 1 };
-    database.plans.set(planId, updatedPlan);
-    return updatedPlan;
-  }
-  return null;
-};
-
-// Session logging
-export const createLog = (logData) => {
-  const logId = `log_${Date.now()}`;
-  const log = {
-    id: logId,
-    ...logData,
+    name: teamData.name,
+    sport: 'basketball',
+    level: teamData.level || '', // e.g., 'varsity', 'jv', 'aau'
+    season: teamData.season || '',
+    joinCode,
+    playerIds: [],
     createdAt: new Date()
   };
-  database.logs.set(logId, log);
   
-  // Mark session as complete in goal
-  const goal = database.goals.get(logData.goalId);
-  if (goal && !goal.completedSessions.includes(logData.sessionIndex)) {
-    goal.completedSessions.push(logData.sessionIndex);
-    database.goals.set(goal.id, goal);
+  database.teams.set(teamId, team);
+  
+  // Add team to coach's teamIds
+  const coach = getUser(coachId);
+  if (coach) {
+    updateUser(coachId, { teamIds: [...(coach.teamIds || []), teamId] });
   }
   
+  return team;
+};
+
+export const getTeam = (teamId) => database.teams.get(teamId);
+
+export const getTeamByJoinCode = (code) => {
+  return Array.from(database.teams.values()).find(t => t.joinCode === code.toUpperCase());
+};
+
+export const getCoachTeams = (coachId) => {
+  return Array.from(database.teams.values()).filter(t => t.coachId === coachId);
+};
+
+export const addPlayerToTeam = (teamId, playerId) => {
+  const team = database.teams.get(teamId);
+  if (team && !team.playerIds.includes(playerId)) {
+    team.playerIds.push(playerId);
+    database.teams.set(teamId, team);
+    
+    // Update player's teamId
+    updateUser(playerId, { teamId });
+    return team;
+  }
+  return null;
+};
+
+export const removePlayerFromTeam = (teamId, playerId) => {
+  const team = database.teams.get(teamId);
+  if (team) {
+    team.playerIds = team.playerIds.filter(id => id !== playerId);
+    database.teams.set(teamId, team);
+    updateUser(playerId, { teamId: null });
+    return team;
+  }
+  return null;
+};
+
+export const getTeamPlayers = (teamId) => {
+  const team = database.teams.get(teamId);
+  if (!team) return [];
+  return team.playerIds.map(id => getUser(id)).filter(Boolean);
+};
+
+const generateJoinCode = () => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+};
+
+// ============ ASSIGNMENT MANAGEMENT ============
+
+export const createAssignment = (coachId, teamId, assignmentData) => {
+  const assignmentId = `assign_${Date.now()}`;
+  
+  const assignment = {
+    id: assignmentId,
+    coachId,
+    teamId,
+    title: assignmentData.title,
+    description: assignmentData.description || '',
+    type: assignmentData.type, // 'drill', 'workout', 'custom'
+    items: assignmentData.items, // array of drill/workout IDs or custom items
+    assignedTo: assignmentData.assignedTo || 'team', // 'team' or array of playerIds
+    dueDate: assignmentData.dueDate,
+    createdAt: new Date(),
+    status: 'active'
+  };
+  
+  database.assignments.set(assignmentId, assignment);
+  return assignment;
+};
+
+export const getAssignment = (assignmentId) => database.assignments.get(assignmentId);
+
+export const getTeamAssignments = (teamId) => {
+  return Array.from(database.assignments.values())
+    .filter(a => a.teamId === teamId && a.status === 'active')
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+};
+
+export const getPlayerAssignments = (playerId, teamId) => {
+  return Array.from(database.assignments.values())
+    .filter(a => {
+      if (a.teamId !== teamId || a.status !== 'active') return false;
+      if (a.assignedTo === 'team') return true;
+      if (Array.isArray(a.assignedTo)) return a.assignedTo.includes(playerId);
+      return false;
+    })
+    .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+};
+
+export const updateAssignment = (assignmentId, updates) => {
+  const assignment = database.assignments.get(assignmentId);
+  if (assignment) {
+    const updated = { ...assignment, ...updates, updatedAt: new Date() };
+    database.assignments.set(assignmentId, updated);
+    return updated;
+  }
+  return null;
+};
+
+export const deleteAssignment = (assignmentId) => {
+  return database.assignments.delete(assignmentId);
+};
+
+// ============ LOG MANAGEMENT ============
+
+export const createLog = (playerId, logData) => {
+  const logId = `log_${Date.now()}`;
+  
+  const log = {
+    id: logId,
+    playerId,
+    assignmentId: logData.assignmentId,
+    itemId: logData.itemId, // drill or workout ID
+    itemType: logData.itemType, // 'drill' or 'workout'
+    createdAt: new Date(),
+    
+    // Drill-specific metrics
+    ...(logData.itemType === 'drill' && {
+      makes: logData.makes,
+      attempts: logData.attempts,
+      percentage: logData.attempts > 0 ? Math.round((logData.makes / logData.attempts) * 100) : null,
+      completed: logData.completed
+    }),
+    
+    // Workout-specific metrics
+    ...(logData.itemType === 'workout' && {
+      sets: logData.sets,
+      reps: logData.reps,
+      weight: logData.weight,
+      time: logData.time,
+      notes: logData.notes
+    }),
+    
+    // Common fields
+    difficulty: logData.difficulty, // 1-5 scale
+    notes: logData.notes
+  };
+  
+  database.logs.set(logId, log);
   return log;
 };
 
-export const getLogsByGoal = (goalId) => {
+export const getLog = (logId) => database.logs.get(logId);
+
+export const getPlayerLogs = (playerId, options = {}) => {
+  let logs = Array.from(database.logs.values()).filter(l => l.playerId === playerId);
+  
+  if (options.assignmentId) {
+    logs = logs.filter(l => l.assignmentId === options.assignmentId);
+  }
+  if (options.itemId) {
+    logs = logs.filter(l => l.itemId === options.itemId);
+  }
+  if (options.since) {
+    logs = logs.filter(l => new Date(l.createdAt) >= new Date(options.since));
+  }
+  
+  return logs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+};
+
+export const getAssignmentLogs = (assignmentId) => {
   return Array.from(database.logs.values())
-    .filter(log => log.goalId === goalId)
+    .filter(l => l.assignmentId === assignmentId)
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 };
 
-export const getLogsByUser = (userId) => {
-  return Array.from(database.logs.values())
-    .filter(log => log.userId === userId)
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+export const getTeamLogs = (teamId, options = {}) => {
+  const team = getTeam(teamId);
+  if (!team) return [];
+  
+  let logs = Array.from(database.logs.values())
+    .filter(l => team.playerIds.includes(l.playerId));
+  
+  if (options.since) {
+    logs = logs.filter(l => new Date(l.createdAt) >= new Date(options.since));
+  }
+  
+  return logs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 };
 
-// Accuracy tracking for shooting drills
-export const logAccuracy = (goalId, drillId, sessionIndex, makes, attempts) => {
-  const goal = database.goals.get(goalId);
-  if (goal) {
-    if (!goal.accuracyLogs) goal.accuracyLogs = {};
-    if (!goal.accuracyLogs[drillId]) goal.accuracyLogs[drillId] = [];
-    
-    goal.accuracyLogs[drillId].push({
-      sessionIndex,
-      makes,
-      attempts,
-      percentage: Math.round((makes / attempts) * 100),
-      date: new Date()
-    });
-    
-    database.goals.set(goalId, goal);
-    return goal.accuracyLogs[drillId];
+// ============ SCHEDULE MANAGEMENT ============
+
+export const createScheduleEvent = (coachId, teamId, eventData) => {
+  const eventId = `event_${Date.now()}`;
+  
+  const event = {
+    id: eventId,
+    coachId,
+    teamId,
+    title: eventData.title,
+    type: eventData.type, // 'practice', 'game', 'workout', 'other'
+    date: eventData.date,
+    startTime: eventData.startTime,
+    endTime: eventData.endTime,
+    location: eventData.location || '',
+    notes: eventData.notes || '',
+    createdAt: new Date()
+  };
+  
+  database.schedules.set(eventId, event);
+  return event;
+};
+
+export const getTeamSchedule = (teamId, options = {}) => {
+  let events = Array.from(database.schedules.values()).filter(e => e.teamId === teamId);
+  
+  if (options.from) {
+    events = events.filter(e => new Date(e.date) >= new Date(options.from));
+  }
+  if (options.to) {
+    events = events.filter(e => new Date(e.date) <= new Date(options.to));
+  }
+  
+  return events.sort((a, b) => new Date(a.date) - new Date(b.date));
+};
+
+export const updateScheduleEvent = (eventId, updates) => {
+  const event = database.schedules.get(eventId);
+  if (event) {
+    const updated = { ...event, ...updates, updatedAt: new Date() };
+    database.schedules.set(eventId, updated);
+    return updated;
   }
   return null;
 };
 
-export const getAccuracyProgress = (goalId, drillId) => {
-  const goal = database.goals.get(goalId);
-  if (goal && goal.accuracyLogs && goal.accuracyLogs[drillId]) {
-    return goal.accuracyLogs[drillId];
+export const deleteScheduleEvent = (eventId) => {
+  return database.schedules.delete(eventId);
+};
+
+// ============ MESSAGE MANAGEMENT ============
+
+export const createMessage = (senderId, messageData) => {
+  const messageId = `msg_${Date.now()}`;
+  
+  const message = {
+    id: messageId,
+    senderId,
+    teamId: messageData.teamId,
+    recipientId: messageData.recipientId || null, // null = team message
+    content: messageData.content,
+    createdAt: new Date(),
+    readBy: [senderId]
+  };
+  
+  database.messages.set(messageId, message);
+  return message;
+};
+
+export const getTeamMessages = (teamId, limit = 50) => {
+  return Array.from(database.messages.values())
+    .filter(m => m.teamId === teamId && !m.recipientId)
+    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+    .slice(-limit);
+};
+
+export const getDirectMessages = (userId1, userId2, teamId, limit = 50) => {
+  return Array.from(database.messages.values())
+    .filter(m => {
+      if (m.teamId !== teamId) return false;
+      return (m.senderId === userId1 && m.recipientId === userId2) ||
+             (m.senderId === userId2 && m.recipientId === userId1);
+    })
+    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+    .slice(-limit);
+};
+
+export const markMessageRead = (messageId, userId) => {
+  const message = database.messages.get(messageId);
+  if (message && !message.readBy.includes(userId)) {
+    message.readBy.push(userId);
+    database.messages.set(messageId, message);
   }
-  return [];
 };
 
-// Get data functions
-export const getAllCoaches = () => {
-  return Array.from(database.coaches.values());
+// ============ DRILL/WORKOUT LIBRARY ============
+
+export const getAllDrills = () => Array.from(database.drills.values());
+
+export const getDrill = (drillId) => database.drills.get(drillId);
+
+export const getDrillsByCategory = (category) => {
+  return Array.from(database.drills.values()).filter(d => d.category === category);
 };
 
-export const getCoach = (coachId) => {
-  return database.coaches.get(coachId);
+export const getAllWorkouts = () => Array.from(database.workouts.values());
+
+export const getWorkout = (workoutId) => database.workouts.get(workoutId);
+
+export const getWorkoutsByCategory = (category) => {
+  return Array.from(database.workouts.values()).filter(w => w.category === category);
 };
 
-export const getDrill = (drillId) => {
-  return database.drills.get(drillId);
+// ============ AI RECOMMENDATIONS ============
+
+export const saveRecommendation = (teamId, playerId, recommendation) => {
+  const recId = `rec_${Date.now()}`;
+  
+  const rec = {
+    id: recId,
+    teamId,
+    playerId, // null for team-wide recommendations
+    type: recommendation.type, // 'improvement', 'concern', 'achievement'
+    category: recommendation.category, // e.g., 'shooting', 'conditioning'
+    title: recommendation.title,
+    description: recommendation.description,
+    suggestedActions: recommendation.suggestedActions || [],
+    dataPoints: recommendation.dataPoints || {},
+    createdAt: new Date(),
+    dismissed: false,
+    actedOn: false
+  };
+  
+  database.aiRecommendations.set(recId, rec);
+  return rec;
 };
 
-export const getCoachDrills = (coachId) => {
-  return Array.from(database.drills.values()).filter(drill => drill.coachId === coachId);
+export const getTeamRecommendations = (teamId, options = {}) => {
+  let recs = Array.from(database.aiRecommendations.values())
+    .filter(r => r.teamId === teamId);
+  
+  if (!options.includeDismissed) {
+    recs = recs.filter(r => !r.dismissed);
+  }
+  if (options.playerId) {
+    recs = recs.filter(r => r.playerId === options.playerId);
+  }
+  
+  return recs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 };
 
-export const getSkillDrills = (coachId) => {
-  return getCoachDrills(coachId).filter(drill => drill.type === 'skill');
+export const dismissRecommendation = (recId) => {
+  const rec = database.aiRecommendations.get(recId);
+  if (rec) {
+    rec.dismissed = true;
+    rec.dismissedAt = new Date();
+    database.aiRecommendations.set(recId, rec);
+  }
 };
 
-export const getCardioDrills = (coachId) => {
-  return getCoachDrills(coachId).filter(drill => drill.type === 'cardio');
+export const markRecommendationActedOn = (recId) => {
+  const rec = database.aiRecommendations.get(recId);
+  if (rec) {
+    rec.actedOn = true;
+    rec.actedOnAt = new Date();
+    database.aiRecommendations.set(recId, rec);
+  }
 };
 
-// Premium upgrade
-export const upgradeToPremium = (userId) => {
-  return updateUser(userId, { isPremium: true });
+// ============ ANALYTICS HELPERS ============
+
+export const getPlayerStats = (playerId, options = {}) => {
+  const logs = getPlayerLogs(playerId, options);
+  
+  // Shooting stats
+  const shootingLogs = logs.filter(l => l.makes !== undefined && l.attempts !== undefined);
+  const totalMakes = shootingLogs.reduce((sum, l) => sum + l.makes, 0);
+  const totalAttempts = shootingLogs.reduce((sum, l) => sum + l.attempts, 0);
+  
+  // Workout stats
+  const workoutLogs = logs.filter(l => l.itemType === 'workout');
+  
+  // Completion rate
+  const completedLogs = logs.filter(l => l.completed !== false);
+  
+  return {
+    totalLogs: logs.length,
+    shooting: {
+      makes: totalMakes,
+      attempts: totalAttempts,
+      percentage: totalAttempts > 0 ? Math.round((totalMakes / totalAttempts) * 100) : null
+    },
+    workouts: {
+      total: workoutLogs.length
+    },
+    completionRate: logs.length > 0 ? Math.round((completedLogs.length / logs.length) * 100) : 100,
+    averageDifficulty: logs.length > 0 
+      ? Math.round(logs.filter(l => l.difficulty).reduce((sum, l) => sum + l.difficulty, 0) / logs.filter(l => l.difficulty).length * 10) / 10
+      : null
+  };
 };
 
-// Set last viewed goal
-export const setLastViewedGoal = (userId, goalId) => {
-  return updateUser(userId, { lastViewedGoalId: goalId });
+export const getTeamStats = (teamId, options = {}) => {
+  const team = getTeam(teamId);
+  if (!team) return null;
+  
+  const playerStats = team.playerIds.map(playerId => ({
+    playerId,
+    player: getUser(playerId),
+    stats: getPlayerStats(playerId, options)
+  }));
+  
+  // Team aggregates
+  const totalLogs = playerStats.reduce((sum, p) => sum + p.stats.totalLogs, 0);
+  const totalMakes = playerStats.reduce((sum, p) => sum + p.stats.shooting.makes, 0);
+  const totalAttempts = playerStats.reduce((sum, p) => sum + p.stats.shooting.attempts, 0);
+  
+  return {
+    playerStats,
+    teamTotals: {
+      totalLogs,
+      shooting: {
+        makes: totalMakes,
+        attempts: totalAttempts,
+        percentage: totalAttempts > 0 ? Math.round((totalMakes / totalAttempts) * 100) : null
+      },
+      avgCompletionRate: playerStats.length > 0
+        ? Math.round(playerStats.reduce((sum, p) => sum + p.stats.completionRate, 0) / playerStats.length)
+        : 0
+    }
+  };
 };
