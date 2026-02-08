@@ -1,21 +1,55 @@
 // Pace Hoops Coach Platform Database
-export const database = {
-  users: new Map(),        // coaches and players
-  teams: new Map(),        // coach's teams
-  drills: new Map(),       // drill library
-  workouts: new Map(),     // workout/conditioning library
-  assignments: new Map(),  // coach-assigned work
-  logs: new Map(),         // player completion logs
-  messages: new Map(),     // chat messages
-  schedules: new Map(),    // team schedules
-  aiRecommendations: new Map() // AI-generated insights
+// Uses localStorage to persist data across sessions
+
+const STORAGE_KEY = 'paceHoopsDB';
+
+// Initialize database structure
+const createEmptyDB = () => ({
+  users: {},
+  teams: {},
+  drills: {},
+  workouts: {},
+  assignments: {},
+  logs: {},
+  messages: {},
+  schedules: {},
+  aiRecommendations: {}
+});
+
+// Load database from localStorage or create new
+const loadDatabase = () => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (e) {
+    console.error('Error loading database:', e);
+  }
+  return createEmptyDB();
 };
+
+// Save database to localStorage
+const saveDatabase = () => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(database));
+  } catch (e) {
+    console.error('Error saving database:', e);
+  }
+};
+
+// The database object
+export let database = loadDatabase();
 
 // Initialize drill and workout library
 export const initializeDatabase = () => {
+  // Only initialize drills/workouts if they don't exist
+  if (Object.keys(database.drills).length > 0) {
+    return; // Already initialized
+  }
+
   // Basketball Skill Drills
   const drills = [
-    // Shooting Drills
     {
       id: 'form-shooting',
       name: 'Form Shooting',
@@ -94,8 +128,6 @@ export const initializeDatabase = () => {
         'Track total makes/attempts'
       ]
     },
-
-    // Ball Handling Drills
     {
       id: 'stationary-handles',
       name: 'Stationary Ball Handling',
@@ -154,8 +186,6 @@ export const initializeDatabase = () => {
         'Repeat sequence 4 times'
       ]
     },
-
-    // Defense Drills
     {
       id: 'defensive-slides',
       name: 'Defensive Slide Series',
@@ -194,8 +224,6 @@ export const initializeDatabase = () => {
         'Contest shots without fouling: 10 reps'
       ]
     },
-
-    // Passing Drills
     {
       id: 'wall-passing',
       name: 'Wall Passing Series',
@@ -215,8 +243,6 @@ export const initializeDatabase = () => {
         'Speed round: as many chest passes in 30 seconds'
       ]
     },
-
-    // Footwork Drills
     {
       id: 'triple-threat',
       name: 'Triple Threat Moves',
@@ -259,9 +285,7 @@ export const initializeDatabase = () => {
     }
   ];
 
-  // Conditioning/Workout Exercises
   const workouts = [
-    // Cardio/Conditioning
     {
       id: 'suicides',
       name: 'Suicides (Line Drills)',
@@ -313,8 +337,6 @@ export const initializeDatabase = () => {
         'Track time on each sprint'
       ]
     },
-
-    // Strength Training
     {
       id: 'squats',
       name: 'Squats',
@@ -470,9 +492,9 @@ export const initializeDatabase = () => {
     }
   ];
 
-  // Store drills and workouts
-  drills.forEach(drill => database.drills.set(drill.id, drill));
-  workouts.forEach(workout => database.workouts.set(workout.id, workout));
+  drills.forEach(drill => database.drills[drill.id] = drill);
+  workouts.forEach(workout => database.workouts[workout.id] = workout);
+  saveDatabase();
 };
 
 // ============ USER MANAGEMENT ============
@@ -483,16 +505,14 @@ export const createUser = (userData) => {
     id: userId,
     email: userData.email,
     name: userData.name,
-    role: userData.role, // 'coach' or 'player'
-    createdAt: new Date(),
+    role: userData.role,
+    createdAt: new Date().toISOString(),
     
-    // Coach-specific fields
     ...(userData.role === 'coach' && {
       teamIds: [],
       organization: userData.organization || ''
     }),
     
-    // Player-specific fields
     ...(userData.role === 'player' && {
       teamId: userData.teamId || null,
       age: userData.age,
@@ -503,21 +523,23 @@ export const createUser = (userData) => {
     })
   };
   
-  database.users.set(userId, user);
+  database.users[userId] = user;
+  saveDatabase();
   return user;
 };
 
-export const getUser = (userId) => database.users.get(userId);
+export const getUser = (userId) => database.users[userId];
 
 export const getUserByEmail = (email) => {
-  return Array.from(database.users.values()).find(u => u.email === email);
+  return Object.values(database.users).find(u => u.email === email);
 };
 
 export const updateUser = (userId, updates) => {
-  const user = database.users.get(userId);
+  const user = database.users[userId];
   if (user) {
-    const updated = { ...user, ...updates, updatedAt: new Date() };
-    database.users.set(userId, updated);
+    const updated = { ...user, ...updates, updatedAt: new Date().toISOString() };
+    database.users[userId] = updated;
+    saveDatabase();
     return updated;
   }
   return null;
@@ -534,60 +556,61 @@ export const createTeam = (coachId, teamData) => {
     coachId,
     name: teamData.name,
     sport: 'basketball',
-    level: teamData.level || '', // e.g., 'varsity', 'jv', 'aau'
+    level: teamData.level || '',
     season: teamData.season || '',
     joinCode,
     playerIds: [],
-    createdAt: new Date()
+    createdAt: new Date().toISOString()
   };
   
-  database.teams.set(teamId, team);
+  database.teams[teamId] = team;
   
-  // Add team to coach's teamIds
   const coach = getUser(coachId);
   if (coach) {
     updateUser(coachId, { teamIds: [...(coach.teamIds || []), teamId] });
   }
   
+  saveDatabase();
   return team;
 };
 
-export const getTeam = (teamId) => database.teams.get(teamId);
+export const getTeam = (teamId) => database.teams[teamId];
 
 export const getTeamByJoinCode = (code) => {
-  return Array.from(database.teams.values()).find(t => t.joinCode === code.toUpperCase());
+  const normalizedCode = code.toUpperCase().trim();
+  return Object.values(database.teams).find(t => t.joinCode === normalizedCode);
 };
 
 export const getCoachTeams = (coachId) => {
-  return Array.from(database.teams.values()).filter(t => t.coachId === coachId);
+  return Object.values(database.teams).filter(t => t.coachId === coachId);
 };
 
 export const addPlayerToTeam = (teamId, playerId) => {
-  const team = database.teams.get(teamId);
+  const team = database.teams[teamId];
   if (team && !team.playerIds.includes(playerId)) {
     team.playerIds.push(playerId);
-    database.teams.set(teamId, team);
-    
-    // Update player's teamId
+    database.teams[teamId] = team;
     updateUser(playerId, { teamId });
+    saveDatabase();
     return team;
   }
   return null;
 };
 
 export const removePlayerFromTeam = (teamId, playerId) => {
-  const team = database.teams.get(teamId);
+  const team = database.teams[teamId];
   if (team) {
     team.playerIds = team.playerIds.filter(id => id !== playerId);
-    database.teams.set(teamId, team);
+    database.teams[teamId] = team;
     updateUser(playerId, { teamId: null });
+    saveDatabase();
     return team;
   }
   return null;
 };
 
 export const getTeamPlayers = (teamId) => {
-  const team = database.teams.get(teamId);
+  const team = database.teams[teamId];
   if (!team) return [];
   return team.playerIds.map(id => getUser(id)).filter(Boolean);
 };
@@ -612,28 +635,29 @@ export const createAssignment = (coachId, teamId, assignmentData) => {
     teamId,
     title: assignmentData.title,
     description: assignmentData.description || '',
-    type: assignmentData.type, // 'drill', 'workout', 'custom'
-    items: assignmentData.items, // array of drill/workout IDs or custom items
-    assignedTo: assignmentData.assignedTo || 'team', // 'team' or array of playerIds
+    type: assignmentData.type,
+    items: assignmentData.items,
+    assignedTo: assignmentData.assignedTo || 'team',
     dueDate: assignmentData.dueDate,
-    createdAt: new Date(),
+    createdAt: new Date().toISOString(),
     status: 'active'
   };
   
-  database.assignments.set(assignmentId, assignment);
+  database.assignments[assignmentId] = assignment;
+  saveDatabase();
   return assignment;
 };
 
-export const getAssignment = (assignmentId) => database.assignments.get(assignmentId);
+export const getAssignment = (assignmentId) => database.assignments[assignmentId];
 
 export const getTeamAssignments = (teamId) => {
-  return Array.from(database.assignments.values())
+  return Object.values(database.assignments)
     .filter(a => a.teamId === teamId && a.status === 'active')
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 };
 
 export const getPlayerAssignments = (playerId, teamId) => {
-  return Array.from(database.assignments.values())
+  return Object.values(database.assignments)
     .filter(a => {
       if (a.teamId !== teamId || a.status !== 'active') return false;
       if (a.assignedTo === 'team') return true;
@@ -644,17 +668,20 @@ export const getPlayerAssignments = (playerId, teamId) => {
 };
 
 export const updateAssignment = (assignmentId, updates) => {
-  const assignment = database.assignments.get(assignmentId);
+  const assignment = database.assignments[assignmentId];
   if (assignment) {
-    const updated = { ...assignment, ...updates, updatedAt: new Date() };
-    database.assignments.set(assignmentId, updated);
+    const updated = { ...assignment, ...updates, updatedAt: new Date().toISOString() };
+    database.assignments[assignmentId] = updated;
+    saveDatabase();
     return updated;
   }
   return null;
 };
 
 export const deleteAssignment = (assignmentId) => {
-  return database.assignments.delete(assignmentId);
+  delete database.assignments[assignmentId];
+  saveDatabase();
+  return true;
 };
 
 // ============ LOG MANAGEMENT ============
@@ -666,11 +693,10 @@ export const createLog = (playerId, logData) => {
     id: logId,
     playerId,
     assignmentId: logData.assignmentId,
-    itemId: logData.itemId, // drill or workout ID
-    itemType: logData.itemType, // 'drill' or 'workout'
-    createdAt: new Date(),
+    itemId: logData.itemId,
+    itemType: logData.itemType,
+    createdAt: new Date().toISOString(),
     
-    // Drill-specific metrics
     ...(logData.itemType === 'drill' && {
       makes: logData.makes,
       attempts: logData.attempts,
@@ -678,28 +704,27 @@ export const createLog = (playerId, logData) => {
       completed: logData.completed
     }),
     
-    // Workout-specific metrics
     ...(logData.itemType === 'workout' && {
       sets: logData.sets,
       reps: logData.reps,
       weight: logData.weight,
-      time: logData.time,
-      notes: logData.notes
+      time: logData.time
     }),
     
-    // Common fields
-    difficulty: logData.difficulty, // 1-5 scale
+    difficulty: logData.difficulty,
+    soreness: logData.soreness || 'none', // none, mild, moderate, severe
     notes: logData.notes
   };
   
-  database.logs.set(logId, log);
+  database.logs[logId] = log;
+  saveDatabase();
   return log;
 };
 
-export const getLog = (logId) => database.logs.get(logId);
+export const getLog = (logId) => database.logs[logId];
 
 export const getPlayerLogs = (playerId, options = {}) => {
-  let logs = Array.from(database.logs.values()).filter(l => l.playerId === playerId);
+  let logs = Object.values(database.logs).filter(l => l.playerId === playerId);
   
   if (options.assignmentId) {
     logs = logs.filter(l => l.assignmentId === options.assignmentId);
@@ -715,7 +740,7 @@ export const getPlayerLogs = (playerId, options = {}) => {
 };
 
 export const getAssignmentLogs = (assignmentId) => {
-  return Array.from(database.logs.values())
+  return Object.values(database.logs)
     .filter(l => l.assignmentId === assignmentId)
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 };
@@ -724,7 +749,7 @@ export const getTeamLogs = (teamId, options = {}) => {
   const team = getTeam(teamId);
   if (!team) return [];
   
-  let logs = Array.from(database.logs.values())
+  let logs = Object.values(database.logs)
     .filter(l => team.playerIds.includes(l.playerId));
   
   if (options.since) {
@@ -744,21 +769,22 @@ export const createScheduleEvent = (coachId, teamId, eventData) => {
     coachId,
     teamId,
     title: eventData.title,
-    type: eventData.type, // 'practice', 'game', 'workout', 'other'
+    type: eventData.type,
     date: eventData.date,
     startTime: eventData.startTime,
     endTime: eventData.endTime,
     location: eventData.location || '',
     notes: eventData.notes || '',
-    createdAt: new Date()
+    createdAt: new Date().toISOString()
   };
   
-  database.schedules.set(eventId, event);
+  database.schedules[eventId] = event;
+  saveDatabase();
   return event;
 };
 
 export const getTeamSchedule = (teamId, options = {}) => {
-  let events = Array.from(database.schedules.values()).filter(e => e.teamId === teamId);
+  let events = Object.values(database.schedules).filter(e => e.teamId === teamId);
   
   if (options.from) {
     events = events.filter(e => new Date(e.date) >= new Date(options.from));
@@ -771,17 +797,20 @@ export const getTeamSchedule = (teamId, options = {}) => {
 };
 
 export const updateScheduleEvent = (eventId, updates) => {
-  const event = database.schedules.get(eventId);
+  const event = database.schedules[eventId];
   if (event) {
-    const updated = { ...event, ...updates, updatedAt: new Date() };
-    database.schedules.set(eventId, updated);
+    const updated = { ...event, ...updates, updatedAt: new Date().toISOString() };
+    database.schedules[eventId] = updated;
+    saveDatabase();
     return updated;
   }
   return null;
 };
 
 export const deleteScheduleEvent = (eventId) => {
-  return database.schedules.delete(eventId);
+  delete database.schedules[eventId];
+  saveDatabase();
+  return true;
 };
 
 // ============ MESSAGE MANAGEMENT ============
@@ -793,25 +822,26 @@ export const createMessage = (senderId, messageData) => {
     id: messageId,
     senderId,
     teamId: messageData.teamId,
-    recipientId: messageData.recipientId || null, // null = team message
+    recipientId: messageData.recipientId || null,
     content: messageData.content,
-    createdAt: new Date(),
+    createdAt: new Date().toISOString(),
     readBy: [senderId]
   };
   
-  database.messages.set(messageId, message);
+  database.messages[messageId] = message;
+  saveDatabase();
   return message;
 };
 
 export const getTeamMessages = (teamId, limit = 50) => {
-  return Array.from(database.messages.values())
+  return Object.values(database.messages)
     .filter(m => m.teamId === teamId && !m.recipientId)
     .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
     .slice(-limit);
 };
 
 export const getDirectMessages = (userId1, userId2, teamId, limit = 50) => {
-  return Array.from(database.messages.values())
+  return Object.values(database.messages)
     .filter(m => {
       if (m.teamId !== teamId) return false;
       return (m.senderId === userId1 && m.recipientId === userId2) ||
@@ -822,29 +852,30 @@ export const getDirectMessages = (userId1, userId2, teamId, limit = 50) => {
 };
 
 export const markMessageRead = (messageId, userId) => {
-  const message = database.messages.get(messageId);
+  const message = database.messages[messageId];
   if (message && !message.readBy.includes(userId)) {
     message.readBy.push(userId);
-    database.messages.set(messageId, message);
+    database.messages[messageId] = message;
+    saveDatabase();
   }
 };
 
 // ============ DRILL/WORKOUT LIBRARY ============
 
-export const getAllDrills = () => Array.from(database.drills.values());
+export const getAllDrills = () => Object.values(database.drills);
 
-export const getDrill = (drillId) => database.drills.get(drillId);
+export const getDrill = (drillId) => database.drills[drillId];
 
 export const getDrillsByCategory = (category) => {
-  return Array.from(database.drills.values()).filter(d => d.category === category);
+  return Object.values(database.drills).filter(d => d.category === category);
 };
 
-export const getAllWorkouts = () => Array.from(database.workouts.values());
+export const getAllWorkouts = () => Object.values(database.workouts);
 
-export const getWorkout = (workoutId) => database.workouts.get(workoutId);
+export const getWorkout = (workoutId) => database.workouts[workoutId];
 
 export const getWorkoutsByCategory = (category) => {
-  return Array.from(database.workouts.values()).filter(w => w.category === category);
+  return Object.values(database.workouts).filter(w => w.category === category);
 };
 
 // ============ AI RECOMMENDATIONS ============
@@ -855,25 +886,25 @@ export const saveRecommendation = (teamId, playerId, recommendation) => {
   const rec = {
     id: recId,
     teamId,
-    playerId, // null for team-wide recommendations
-    type: recommendation.type, // 'improvement', 'concern', 'achievement'
-    category: recommendation.category, // e.g., 'shooting', 'conditioning'
+    playerId,
+    type: recommendation.type,
+    category: recommendation.category,
     title: recommendation.title,
     description: recommendation.description,
     suggestedActions: recommendation.suggestedActions || [],
     dataPoints: recommendation.dataPoints || {},
-    createdAt: new Date(),
+    createdAt: new Date().toISOString(),
     dismissed: false,
     actedOn: false
   };
   
-  database.aiRecommendations.set(recId, rec);
+  database.aiRecommendations[recId] = rec;
+  saveDatabase();
   return rec;
 };
 
 export const getTeamRecommendations = (teamId, options = {}) => {
-  let recs = Array.from(database.aiRecommendations.values())
-    .filter(r => r.teamId === teamId);
+  let recs = Object.values(database.aiRecommendations).filter(r => r.teamId === teamId);
   
   if (!options.includeDismissed) {
     recs = recs.filter(r => !r.dismissed);
@@ -886,20 +917,22 @@ export const getTeamRecommendations = (teamId, options = {}) => {
 };
 
 export const dismissRecommendation = (recId) => {
-  const rec = database.aiRecommendations.get(recId);
+  const rec = database.aiRecommendations[recId];
   if (rec) {
     rec.dismissed = true;
-    rec.dismissedAt = new Date();
-    database.aiRecommendations.set(recId, rec);
+    rec.dismissedAt = new Date().toISOString();
+    database.aiRecommendations[recId] = rec;
+    saveDatabase();
   }
 };
 
 export const markRecommendationActedOn = (recId) => {
-  const rec = database.aiRecommendations.get(recId);
+  const rec = database.aiRecommendations[recId];
   if (rec) {
     rec.actedOn = true;
-    rec.actedOnAt = new Date();
-    database.aiRecommendations.set(recId, rec);
+    rec.actedOnAt = new Date().toISOString();
+    database.aiRecommendations[recId] = rec;
+    saveDatabase();
   }
 };
 
@@ -908,16 +941,27 @@ export const markRecommendationActedOn = (recId) => {
 export const getPlayerStats = (playerId, options = {}) => {
   const logs = getPlayerLogs(playerId, options);
   
-  // Shooting stats
   const shootingLogs = logs.filter(l => l.makes !== undefined && l.attempts !== undefined);
-  const totalMakes = shootingLogs.reduce((sum, l) => sum + l.makes, 0);
-  const totalAttempts = shootingLogs.reduce((sum, l) => sum + l.attempts, 0);
+  const totalMakes = shootingLogs.reduce((sum, l) => sum + (l.makes || 0), 0);
+  const totalAttempts = shootingLogs.reduce((sum, l) => sum + (l.attempts || 0), 0);
   
-  // Workout stats
   const workoutLogs = logs.filter(l => l.itemType === 'workout');
-  
-  // Completion rate
   const completedLogs = logs.filter(l => l.completed !== false);
+  
+  // Soreness tracking
+  const sorenessLogs = logs.filter(l => l.soreness && l.soreness !== 'none');
+  const sorenessCounts = {
+    none: logs.filter(l => !l.soreness || l.soreness === 'none').length,
+    mild: logs.filter(l => l.soreness === 'mild').length,
+    moderate: logs.filter(l => l.soreness === 'moderate').length,
+    severe: logs.filter(l => l.soreness === 'severe').length
+  };
+  
+  // Recent soreness (last 7 days)
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const recentLogs = logs.filter(l => new Date(l.createdAt) >= weekAgo);
+  const recentSoreness = recentLogs.filter(l => l.soreness === 'moderate' || l.soreness === 'severe');
   
   return {
     totalLogs: logs.length,
@@ -932,7 +976,12 @@ export const getPlayerStats = (playerId, options = {}) => {
     completionRate: logs.length > 0 ? Math.round((completedLogs.length / logs.length) * 100) : 100,
     averageDifficulty: logs.length > 0 
       ? Math.round(logs.filter(l => l.difficulty).reduce((sum, l) => sum + l.difficulty, 0) / logs.filter(l => l.difficulty).length * 10) / 10
-      : null
+      : null,
+    soreness: {
+      counts: sorenessCounts,
+      recentHighSoreness: recentSoreness.length,
+      hasRecentSoreness: recentSoreness.length > 0
+    }
   };
 };
 
@@ -946,10 +995,12 @@ export const getTeamStats = (teamId, options = {}) => {
     stats: getPlayerStats(playerId, options)
   }));
   
-  // Team aggregates
   const totalLogs = playerStats.reduce((sum, p) => sum + p.stats.totalLogs, 0);
   const totalMakes = playerStats.reduce((sum, p) => sum + p.stats.shooting.makes, 0);
   const totalAttempts = playerStats.reduce((sum, p) => sum + p.stats.shooting.attempts, 0);
+  
+  // Team soreness analysis
+  const playersWithHighSoreness = playerStats.filter(p => p.stats.soreness.hasRecentSoreness);
   
   return {
     playerStats,
@@ -962,7 +1013,21 @@ export const getTeamStats = (teamId, options = {}) => {
       },
       avgCompletionRate: playerStats.length > 0
         ? Math.round(playerStats.reduce((sum, p) => sum + p.stats.completionRate, 0) / playerStats.length)
-        : 0
+        : 0,
+      soreness: {
+        playersWithHighSoreness: playersWithHighSoreness.length,
+        playersAtRisk: playersWithHighSoreness.map(p => ({
+          player: p.player,
+          recentHighSoreness: p.stats.soreness.recentHighSoreness
+        }))
+      }
     }
   };
+};
+
+// ============ DATABASE RESET (for testing) ============
+export const resetDatabase = () => {
+  localStorage.removeItem(STORAGE_KEY);
+  database = createEmptyDB();
+  initializeDatabase();
 };
