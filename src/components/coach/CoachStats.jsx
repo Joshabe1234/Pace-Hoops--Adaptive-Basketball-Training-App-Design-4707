@@ -1,25 +1,22 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  getTeamStats, 
   getTeamPlayers, 
   getTeamAssignments,
   getPlayerLogs,
   getDrill,
-  getWorkout,
-  getAssignmentLogs,
-  getUser
+  getWorkout
 } from '../../data/database';
 
 const CoachStats = ({ user, team }) => {
-  const [activeTab, setActiveTab] = useState('team'); // 'team', 'position', 'individual'
+  const [activeTab, setActiveTab] = useState('team');
   const [selectedPosition, setSelectedPosition] = useState('PG');
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [expandedAssignment, setExpandedAssignment] = useState(null);
   const [expandedDrill, setExpandedDrill] = useState(null);
 
   const players = getTeamPlayers(team.id);
-  const assignments = getTeamAssignments(team.id);
+  const allAssignments = getTeamAssignments(team.id);
   const positions = ['PG', 'SG', 'SF', 'PF', 'C'];
 
   // Get players by position
@@ -27,48 +24,63 @@ const CoachStats = ({ user, team }) => {
     return players.filter(p => p.position === position);
   };
 
-  // Filter assignments based on view
+  // Check if an assignment was assigned to a specific position
+  const isAssignedToPosition = (assignment, position) => {
+    if (assignment.assignedTo === 'team') return false; // Team assignments handled separately
+    if (!Array.isArray(assignment.assignedTo)) return false;
+    
+    const positionPlayers = getPlayersByPosition(position);
+    const positionPlayerIds = positionPlayers.map(p => p.id);
+    
+    // Check if ALL players in assignment are from this position (position-specific assignment)
+    // OR if SOME players from this position are in the assignment
+    const assignedToThisPosition = assignment.assignedTo.some(id => positionPlayerIds.includes(id));
+    return assignedToThisPosition;
+  };
+
+  // Check if an assignment was assigned to a specific player
+  const isAssignedToPlayer = (assignment, playerId) => {
+    if (assignment.assignedTo === 'team') return true; // Team assignments include everyone
+    if (Array.isArray(assignment.assignedTo)) {
+      return assignment.assignedTo.includes(playerId);
+    }
+    return false;
+  };
+
+  // Filter assignments based on view - THIS IS THE KEY LOGIC
   const getFilteredAssignments = () => {
     if (activeTab === 'team') {
-      // Only team-wide assignments
-      return assignments.filter(a => a.assignedTo === 'team');
+      // ONLY team-wide assignments (where coach selected "Assign to Team")
+      return allAssignments.filter(a => a.assignedTo === 'team');
     } else if (activeTab === 'position') {
-      // Team-wide + position-specific for selected position
-      return assignments.filter(a => {
+      // Team-wide assignments + assignments specifically for this position
+      return allAssignments.filter(a => {
+        // Include team-wide assignments
         if (a.assignedTo === 'team') return true;
-        if (Array.isArray(a.assignedTo)) {
-          // Check if any player in this position was assigned
-          const positionPlayers = getPlayersByPosition(selectedPosition);
-          return positionPlayers.some(p => a.assignedTo.includes(p.id));
-        }
+        // Include position-specific assignments for selected position
+        if (isAssignedToPosition(a, selectedPosition)) return true;
         return false;
       });
     } else if (activeTab === 'individual' && selectedPlayer) {
-      // All assignments for this player
-      return assignments.filter(a => {
-        if (a.assignedTo === 'team') return true;
-        if (Array.isArray(a.assignedTo)) {
-          return a.assignedTo.includes(selectedPlayer.id);
-        }
-        return false;
-      });
+      // All assignments this player was assigned to
+      return allAssignments.filter(a => isAssignedToPlayer(a, selectedPlayer.id));
     }
     return [];
   };
 
-  // Get relevant players for current view
-  const getRelevantPlayers = () => {
+  // Get relevant players for stats calculation
+  const getRelevantPlayers = (assignment = null) => {
     if (activeTab === 'team') {
-      return players;
+      return players; // All players for team stats
     } else if (activeTab === 'position') {
-      return getPlayersByPosition(selectedPosition);
+      return getPlayersByPosition(selectedPosition); // Only players in this position
     } else if (activeTab === 'individual' && selectedPlayer) {
-      return [selectedPlayer];
+      return [selectedPlayer]; // Just this player
     }
     return [];
   };
 
-  // Calculate stats for a specific drill across relevant players
+  // Calculate stats for a specific drill
   const getDrillStats = (drillId, assignmentId) => {
     const relevantPlayers = getRelevantPlayers();
     
@@ -130,15 +142,19 @@ const CoachStats = ({ user, team }) => {
   // Calculate overall stats for current view
   const getOverallStats = () => {
     const relevantPlayers = getRelevantPlayers();
+    const filteredAssignments = getFilteredAssignments();
     
     let totalLogs = 0;
     let totalMakes = 0;
     let totalAttempts = 0;
-    let completedAssignments = 0;
-    let totalAssignments = 0;
+
+    // Only count logs from filtered assignments
+    const filteredAssignmentIds = filteredAssignments.map(a => a.id);
 
     relevantPlayers.forEach(player => {
-      const logs = getPlayerLogs(player.id);
+      const logs = getPlayerLogs(player.id).filter(l => 
+        filteredAssignmentIds.includes(l.assignmentId)
+      );
       totalLogs += logs.length;
       
       logs.forEach(l => {
@@ -146,9 +162,6 @@ const CoachStats = ({ user, team }) => {
         if (l.attempts !== undefined) totalAttempts += l.attempts;
       });
     });
-
-    const filteredAssignments = getFilteredAssignments();
-    totalAssignments = filteredAssignments.length * relevantPlayers.length;
 
     return {
       playerCount: relevantPlayers.length,
@@ -210,6 +223,14 @@ const CoachStats = ({ user, team }) => {
         >
           👤 Individual
         </button>
+      </div>
+
+      {/* Tab Description */}
+      <div className="bg-slate-800/50 rounded-lg px-4 py-2 text-sm text-slate-400">
+        {activeTab === 'team' && '📊 Showing stats for team-wide assignments only'}
+        {activeTab === 'position' && `📊 Showing team-wide + ${selectedPosition}-specific assignments`}
+        {activeTab === 'individual' && selectedPlayer && `📊 Showing all assignments for ${selectedPlayer.name}`}
+        {activeTab === 'individual' && !selectedPlayer && '📊 Select a player to view their stats'}
       </div>
 
       {/* Position Selector */}
@@ -316,7 +337,7 @@ const CoachStats = ({ user, team }) => {
               <p className="text-slate-400">No assignments found</p>
               <p className="text-slate-500 text-sm mt-1">
                 {activeTab === 'team' && 'Create a team-wide assignment to see stats here'}
-                {activeTab === 'position' && `No assignments for ${selectedPosition} players yet`}
+                {activeTab === 'position' && `No team or ${selectedPosition}-specific assignments yet`}
                 {activeTab === 'individual' && 'No assignments for this player yet'}
               </p>
             </div>
@@ -326,13 +347,20 @@ const CoachStats = ({ user, team }) => {
                 const isExpanded = expandedAssignment === assignment.id;
                 const items = assignment.items.map(id => getItemDetails(id, assignment.type)).filter(Boolean);
                 
-                // Calculate assignment completion
+                // Calculate assignment completion for relevant players
                 const relevantPlayers = getRelevantPlayers();
                 let completedCount = 0;
                 relevantPlayers.forEach(player => {
                   const logs = getPlayerLogs(player.id).filter(l => l.assignmentId === assignment.id);
                   if (logs.length > 0) completedCount++;
                 });
+
+                // Determine assignment type label
+                const getAssignmentTypeLabel = () => {
+                  if (assignment.assignedTo === 'team') return { text: 'Team', color: 'bg-blue-500/20 text-blue-400' };
+                  return { text: 'Targeted', color: 'bg-purple-500/20 text-purple-400' };
+                };
+                const typeLabel = getAssignmentTypeLabel();
 
                 return (
                   <div key={assignment.id} className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
@@ -346,18 +374,14 @@ const CoachStats = ({ user, team }) => {
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center space-x-2 flex-wrap">
+                          <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                             <h3 className="font-semibold text-white">{assignment.title}</h3>
-                            <span className={`px-2 py-0.5 text-xs rounded-full ${
-                              assignment.assignedTo === 'team'
-                                ? 'bg-blue-500/20 text-blue-400'
-                                : 'bg-purple-500/20 text-purple-400'
-                            }`}>
-                              {assignment.assignedTo === 'team' ? 'Team' : 'Targeted'}
+                            <span className={`px-2 py-0.5 text-xs rounded-full ${typeLabel.color}`}>
+                              {typeLabel.text}
                             </span>
                           </div>
                           <p className="text-sm text-slate-400 mt-1">
-                            {items.length} {assignment.type}s • {completedCount}/{relevantPlayers.length} players completed
+                            {items.length} {assignment.type}s • {completedCount}/{relevantPlayers.length} completed
                           </p>
                         </div>
                         <div className="flex items-center space-x-2 ml-4">
@@ -489,21 +513,24 @@ const CoachStats = ({ user, team }) => {
                                                         </span>
                                                       </div>
                                                       <span className="text-white text-sm">{pb.player.name}</span>
+                                                      <span className="text-slate-500 text-xs">({pb.player.position})</span>
                                                     </div>
                                                     <div className="text-right">
                                                       {pb.percentage !== null ? (
-                                                        <span className={`font-bold ${
-                                                          pb.percentage >= 70 ? 'text-green-400' :
-                                                          pb.percentage >= 50 ? 'text-yellow-400' : 'text-red-400'
-                                                        }`}>
-                                                          {pb.percentage}%
-                                                        </span>
+                                                        <>
+                                                          <span className={`font-bold ${
+                                                            pb.percentage >= 70 ? 'text-green-400' :
+                                                            pb.percentage >= 50 ? 'text-yellow-400' : 'text-red-400'
+                                                          }`}>
+                                                            {pb.percentage}%
+                                                          </span>
+                                                          <span className="text-slate-500 text-xs ml-2">
+                                                            ({pb.makes}/{pb.attempts})
+                                                          </span>
+                                                        </>
                                                       ) : (
                                                         <span className="text-slate-400 text-sm">{pb.logs} logs</span>
                                                       )}
-                                                      <span className="text-slate-500 text-xs ml-2">
-                                                        ({pb.makes}/{pb.attempts})
-                                                      </span>
                                                     </div>
                                                   </div>
                                                 ))}
