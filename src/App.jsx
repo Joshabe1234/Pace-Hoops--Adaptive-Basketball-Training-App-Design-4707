@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { initializeDatabase, getUser, getTeam } from './data/database';
+import { initializeDatabase, getUser, getTeam, database } from './data/database';
 
-// Auth Components
+// Auth
 import AuthScreen from './components/auth/AuthScreen';
+
+// Common
+import Navigation from './components/common/Navigation';
 
 // Coach Components
 import CoachDashboard from './components/coach/CoachDashboard';
@@ -20,232 +23,130 @@ import PlayerStats from './components/player/PlayerStats';
 import PlayerSchedule from './components/player/PlayerSchedule';
 import PlayerChat from './components/player/PlayerChat';
 
-// Common Components
-import Navigation from './components/common/Navigation';
-
-import './App.css';
-
 function App() {
-  const [user, setUser] = useState(null);
-  const [currentTeam, setCurrentTeam] = useState(null);
-  const [currentView, setCurrentView] = useState('dashboard');
   const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState(null);
+  const [team, setTeam] = useState(null);
+  const [currentView, setCurrentView] = useState('home');
 
+  // Initialize database on mount - but DO NOT auto-login
   useEffect(() => {
-    // Initialize database
     initializeDatabase();
-
-    // Check for existing session
-    const storedUserId = localStorage.getItem('paceHoopsUserId');
-    if (storedUserId) {
-      const existingUser = getUser(storedUserId);
-      if (existingUser) {
-        setUser(existingUser);
-        
-        // Load team
-        if (existingUser.role === 'coach' && existingUser.teamIds?.length > 0) {
-          setCurrentTeam(getTeam(existingUser.teamIds[0]));
-        } else if (existingUser.role === 'player' && existingUser.teamId) {
-          setCurrentTeam(getTeam(existingUser.teamId));
-        }
-      }
-    }
-    
+    // No auto-login - always start at login page
     setIsLoading(false);
   }, []);
 
-  const handleLogin = (loggedInUser, team) => {
+  const handleLogin = (loggedInUser, userTeam) => {
     setUser(loggedInUser);
-    setCurrentTeam(team);
-    localStorage.setItem('paceHoopsUserId', loggedInUser.id);
+    setTeam(userTeam);
+    setCurrentView('home');
   };
 
   const handleLogout = () => {
     setUser(null);
-    setCurrentTeam(null);
-    setCurrentView('dashboard');
-    localStorage.removeItem('paceHoopsUserId');
+    setTeam(null);
+    setCurrentView('home');
   };
 
-  const handleTeamChange = (team) => {
-    setCurrentTeam(team);
+  const handleTeamJoined = (newTeam) => {
+    setTeam(newTeam);
+  };
+
+  const handleTeamCreated = (newTeam) => {
+    setTeam(newTeam);
   };
 
   const refreshUser = () => {
     if (user) {
-      const updated = getUser(user.id);
-      setUser(updated);
+      const refreshedUser = getUser(user.id);
+      if (refreshedUser) {
+        setUser(refreshedUser);
+        if (refreshedUser.teamId) {
+          setTeam(getTeam(refreshedUser.teamId));
+        }
+      }
     }
   };
 
   const refreshTeam = () => {
-    if (currentTeam) {
-      const updated = getTeam(currentTeam.id);
-      setCurrentTeam(updated);
+    if (team) {
+      const refreshedTeam = getTeam(team.id);
+      setTeam(refreshedTeam);
     }
   };
 
+  // Loading state
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-white text-lg">Loading Pace Hoops...</p>
+          <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl flex items-center justify-center mx-auto mb-4 animate-pulse">
+            <span className="text-3xl">🏀</span>
+          </div>
+          <p className="text-slate-400">Loading...</p>
         </div>
       </div>
     );
   }
 
+  // ALWAYS show auth screen first if not logged in this session
   if (!user) {
     return <AuthScreen onLogin={handleLogin} />;
   }
 
-  const renderCoachView = () => {
-    if (!currentTeam) {
-      return (
-        <CoachDashboard 
-          user={user} 
-          onTeamCreated={(team) => setCurrentTeam(team)}
-          refreshUser={refreshUser}
-        />
-      );
-    }
+  // Logged in - show main app
+  const isCoach = user.role === 'coach';
 
-    switch (currentView) {
-      case 'dashboard':
-        return (
-          <CoachDashboard 
-            user={user} 
-            team={currentTeam}
-            onTeamChange={handleTeamChange}
-            refreshUser={refreshUser}
-            refreshTeam={refreshTeam}
-          />
-        );
-      case 'roster':
-        return (
-          <CoachRoster 
-            user={user} 
-            team={currentTeam}
-            refreshTeam={refreshTeam}
-          />
-        );
-      case 'assignments':
-        return (
-          <CoachAssignments 
-            user={user} 
-            team={currentTeam}
-            refreshTeam={refreshTeam}
-          />
-        );
-      case 'stats':
-        return (
-          <CoachStats 
-            user={user} 
-            team={currentTeam}
-          />
-        );
-      case 'schedule':
-        return (
-          <CoachSchedule 
-            user={user} 
-            team={currentTeam}
-          />
-        );
-      case 'chat':
-        return (
-          <CoachChat 
-            user={user} 
-            team={currentTeam}
-          />
-        );
-      default:
-        return (
-          <CoachDashboard 
-            user={user} 
-            team={currentTeam}
-            onTeamChange={handleTeamChange}
-            refreshUser={refreshUser}
-            refreshTeam={refreshTeam}
-          />
-        );
-    }
-  };
-
-  const renderPlayerView = () => {
-    if (!currentTeam) {
-      return (
-        <PlayerDashboard 
-          user={user}
-          onTeamJoined={(team) => {
-            setCurrentTeam(team);
-            refreshUser();
-          }}
-        />
-      );
-    }
-
-    switch (currentView) {
-      case 'dashboard':
-        return (
-          <PlayerDashboard 
-            user={user} 
-            team={currentTeam}
-            refreshUser={refreshUser}
-          />
-        );
-      case 'assignments':
-        return (
-          <PlayerAssignments 
-            user={user} 
-            team={currentTeam}
-          />
-        );
-      case 'stats':
-        return (
-          <PlayerStats 
-            user={user} 
-            team={currentTeam}
-          />
-        );
-      case 'schedule':
-        return (
-          <PlayerSchedule 
-            user={user} 
-            team={currentTeam}
-          />
-        );
-      case 'chat':
-        return (
-          <PlayerChat 
-            user={user} 
-            team={currentTeam}
-          />
-        );
-      default:
-        return (
-          <PlayerDashboard 
-            user={user} 
-            team={currentTeam}
-            refreshUser={refreshUser}
-          />
-        );
+  const renderContent = () => {
+    if (isCoach) {
+      switch (currentView) {
+        case 'home':
+          return <CoachDashboard user={user} team={team} onTeamCreated={handleTeamCreated} refreshTeam={refreshTeam} />;
+        case 'roster':
+          return <CoachRoster user={user} team={team} refreshTeam={refreshTeam} />;
+        case 'assignments':
+          return <CoachAssignments user={user} team={team} refreshTeam={refreshTeam} />;
+        case 'stats':
+          return <CoachStats user={user} team={team} />;
+        case 'schedule':
+          return <CoachSchedule user={user} team={team} />;
+        case 'chat':
+          return <CoachChat user={user} team={team} />;
+        default:
+          return <CoachDashboard user={user} team={team} onTeamCreated={handleTeamCreated} refreshTeam={refreshTeam} />;
+      }
+    } else {
+      switch (currentView) {
+        case 'home':
+          return <PlayerDashboard user={user} team={team} onTeamJoined={handleTeamJoined} refreshUser={refreshUser} />;
+        case 'training':
+          return <PlayerAssignments user={user} team={team} />;
+        case 'stats':
+          return <PlayerStats user={user} team={team} />;
+        case 'schedule':
+          return <PlayerSchedule user={user} team={team} />;
+        case 'chat':
+          return <PlayerChat user={user} team={team} />;
+        default:
+          return <PlayerDashboard user={user} team={team} onTeamJoined={handleTeamJoined} refreshUser={refreshUser} />;
+      }
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-900">
+    <div className="min-h-screen bg-slate-900 flex">
       {/* Navigation */}
-      <Navigation 
+      <Navigation
         user={user}
-        team={currentTeam}
+        team={team}
         currentView={currentView}
-        onViewChange={setCurrentView}
+        setCurrentView={setCurrentView}
         onLogout={handleLogout}
+        isCoach={isCoach}
       />
 
       {/* Main Content */}
-      <main className="pb-20 md:pb-0 md:pl-64">
+      <main className="flex-1 md:ml-64 pb-20 md:pb-0 min-h-screen overflow-x-hidden">
         <AnimatePresence mode="wait">
           <motion.div
             key={currentView}
@@ -253,8 +154,9 @@ function App() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2 }}
+            className="min-h-full"
           >
-            {user.role === 'coach' ? renderCoachView() : renderPlayerView()}
+            {renderContent()}
           </motion.div>
         </AnimatePresence>
       </main>
