@@ -16,12 +16,24 @@ const createEmptyDB = () => ({
   aiRecommendations: {}
 });
 
-// Load database from localStorage or create new
+// Load database from localStorage
 const loadDatabase = () => {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
-      return JSON.parse(stored);
+      const parsed = JSON.parse(stored);
+      // Ensure all required keys exist
+      return {
+        users: parsed.users || {},
+        teams: parsed.teams || {},
+        drills: parsed.drills || {},
+        workouts: parsed.workouts || {},
+        assignments: parsed.assignments || {},
+        logs: parsed.logs || {},
+        messages: parsed.messages || {},
+        schedules: parsed.schedules || {},
+        aiRecommendations: parsed.aiRecommendations || {}
+      };
     }
   } catch (e) {
     console.error('Error loading database:', e);
@@ -33,6 +45,8 @@ const loadDatabase = () => {
 const saveDatabase = () => {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(database));
+    // Force a storage event for other tabs
+    window.dispatchEvent(new Event('storage'));
   } catch (e) {
     console.error('Error saving database:', e);
   }
@@ -41,11 +55,57 @@ const saveDatabase = () => {
 // The database object
 export let database = loadDatabase();
 
+// Listen for changes from other tabs
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === STORAGE_KEY) {
+      database = loadDatabase();
+    }
+  });
+  
+  // Also reload periodically to catch changes
+  setInterval(() => {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        // Update database reference
+        database.users = parsed.users || {};
+        database.teams = parsed.teams || {};
+        database.drills = parsed.drills || {};
+        database.workouts = parsed.workouts || {};
+        database.assignments = parsed.assignments || {};
+        database.logs = parsed.logs || {};
+        database.messages = parsed.messages || {};
+        database.schedules = parsed.schedules || {};
+        database.aiRecommendations = parsed.aiRecommendations || {};
+      } catch (e) {}
+    }
+  }, 1000); // Check every second
+}
+
 // Initialize drill and workout library
 export const initializeDatabase = () => {
+  // Reload from localStorage first
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      database.users = parsed.users || {};
+      database.teams = parsed.teams || {};
+      database.drills = parsed.drills || {};
+      database.workouts = parsed.workouts || {};
+      database.assignments = parsed.assignments || {};
+      database.logs = parsed.logs || {};
+      database.messages = parsed.messages || {};
+      database.schedules = parsed.schedules || {};
+      database.aiRecommendations = parsed.aiRecommendations || {};
+    } catch (e) {}
+  }
+
   // Only initialize drills/workouts if they don't exist
   if (Object.keys(database.drills).length > 0) {
-    return; // Already initialized
+    return;
   }
 
   // Basketball Skill Drills
@@ -58,16 +118,13 @@ export const initializeDatabase = () => {
       difficulty: 'beginner',
       duration: 15,
       description: 'Close-range shooting focusing on perfect form and mechanics.',
-      videoUrl: 'https://www.youtube.com/watch?v=Hj5hZt6rZGc',
       requiresAccuracyLog: true,
       metrics: ['makes', 'attempts'],
       steps: [
-        'Stand 3 feet from the basket, feet shoulder-width apart',
-        'Ball in shooting hand only, elbow under the ball',
-        'Focus on straight elbow, flick of the wrist, hold follow-through',
-        'Make 10 shots before moving back to 5 feet',
-        'Make 10 more, then move to 8 feet',
-        'Track makes/attempts at each distance'
+        'Stand 3 feet from the basket',
+        'Ball in shooting hand only',
+        'Focus on elbow alignment and follow-through',
+        'Make 10 shots before moving back'
       ]
     },
     {
@@ -77,16 +134,13 @@ export const initializeDatabase = () => {
       type: 'skill',
       difficulty: 'beginner',
       duration: 15,
-      description: 'Consistent free throw practice with pre-shot routine.',
-      videoUrl: 'https://www.youtube.com/watch?v=YFJ5aI5vF6Y',
+      description: 'Consistent free throw practice.',
       requiresAccuracyLog: true,
       metrics: ['makes', 'attempts'],
       steps: [
-        'Establish your routine: dribbles, breath, focus point',
-        'Same routine every single time',
-        'Shoot sets of 10, track percentage',
-        'Goal: 70%+ consistency',
-        'Add pressure: must make 2 in a row to finish'
+        'Establish your routine',
+        'Same routine every time',
+        'Shoot sets of 10'
       ]
     },
     {
@@ -96,17 +150,13 @@ export const initializeDatabase = () => {
       type: 'skill',
       difficulty: 'intermediate',
       duration: 20,
-      description: 'Catch and shoot from 5 spots around the arc.',
-      videoUrl: 'https://www.youtube.com/watch?v=YyqkYFzQ9Rk',
+      description: 'Catch and shoot from 5 spots.',
       requiresAccuracyLog: true,
       metrics: ['makes', 'attempts'],
       steps: [
-        'Start in right corner, catch and shoot 10 shots',
-        'Move to right wing, 10 shots',
-        'Top of key, 10 shots',
-        'Left wing, 10 shots',
-        'Left corner, 10 shots',
-        'Track makes/attempts per spot and total'
+        'Start in right corner',
+        'Move around the arc',
+        '10 shots per spot'
       ]
     },
     {
@@ -116,16 +166,13 @@ export const initializeDatabase = () => {
       type: 'skill',
       difficulty: 'advanced',
       duration: 20,
-      description: 'Game-speed pull-up jumpers off the dribble.',
-      videoUrl: 'https://www.youtube.com/watch?v=YyqkYFzQ9Rk',
+      description: 'Game-speed pull-up jumpers.',
       requiresAccuracyLog: true,
       metrics: ['makes', 'attempts'],
       steps: [
-        'Start at half court, attack with 2-3 dribbles',
-        'Pull up at elbow for mid-range jumper',
-        '10 from right side, 10 from left side',
-        'Add crossover into pull-up: 10 each side',
-        'Track total makes/attempts'
+        'Start at half court',
+        'Attack with 2-3 dribbles',
+        'Pull up at elbow'
       ]
     },
     {
@@ -135,16 +182,13 @@ export const initializeDatabase = () => {
       type: 'skill',
       difficulty: 'beginner',
       duration: 10,
-      description: 'Basic ball handling drills in place.',
-      videoUrl: 'https://www.youtube.com/watch?v=4C3oZpM5h7k',
+      description: 'Basic ball handling drills.',
       requiresAccuracyLog: false,
       metrics: ['completed'],
       steps: [
-        'Pound dribbles: 30 seconds each hand, as hard as possible',
-        'Crossovers: 30 seconds, low and tight',
-        'Between the legs: 30 seconds each direction',
-        'Behind the back: 30 seconds each direction',
-        'Combo: cross-between-behind, 1 minute continuous'
+        'Pound dribbles',
+        'Crossovers',
+        'Between the legs'
       ]
     },
     {
@@ -154,36 +198,13 @@ export const initializeDatabase = () => {
       type: 'skill',
       difficulty: 'intermediate',
       duration: 10,
-      description: 'Advanced ball handling with two basketballs.',
-      videoUrl: 'https://www.youtube.com/watch?v=4C3oZpM5h7k',
+      description: 'Advanced ball handling.',
       requiresAccuracyLog: false,
       metrics: ['completed'],
       steps: [
-        'Both balls together: 30 seconds',
-        'Alternating: 30 seconds',
-        'One high, one low: 30 seconds',
-        'Both crossover together: 30 seconds',
-        'Walking forward with alternating: length of court x 4'
-      ]
-    },
-    {
-      id: 'full-court-handles',
-      name: 'Full Court Ball Handling',
-      category: 'ball-handling',
-      type: 'skill',
-      difficulty: 'intermediate',
-      duration: 15,
-      description: 'Ball handling while moving full court.',
-      videoUrl: 'https://www.youtube.com/watch?v=4C3oZpM5h7k',
-      requiresAccuracyLog: false,
-      metrics: ['completed'],
-      steps: [
-        'Right hand only down, left hand back',
-        'Crossover at each free throw line and half court',
-        'Between legs at each line',
-        'Behind back at each line',
-        'Speed dribble: baseline to baseline under 4 seconds',
-        'Repeat sequence 4 times'
+        'Both balls together',
+        'Alternating',
+        'One high, one low'
       ]
     },
     {
@@ -193,74 +214,13 @@ export const initializeDatabase = () => {
       type: 'skill',
       difficulty: 'beginner',
       duration: 10,
-      description: 'Lateral movement and defensive positioning.',
-      videoUrl: 'https://www.youtube.com/watch?v=2QK4VQ5u4fA',
+      description: 'Lateral movement and positioning.',
       requiresAccuracyLog: false,
       metrics: ['completed'],
       steps: [
-        'Stance check: low, wide, hands active',
-        'Sideline to sideline slides, stay low, 5 reps',
-        'Zig-zag slides: baseline to half court, 4 reps',
-        'Close-out drill: sprint, breakdown, slide, 10 reps',
-        'Drop step reaction: 10 each direction'
-      ]
-    },
-    {
-      id: 'one-on-one-defense',
-      name: '1-on-1 Defensive Shell',
-      category: 'defense',
-      type: 'skill',
-      difficulty: 'intermediate',
-      duration: 15,
-      description: 'Positioning and footwork against offensive player.',
-      videoUrl: 'https://www.youtube.com/watch?v=2QK4VQ5u4fA',
-      requiresAccuracyLog: false,
-      metrics: ['completed'],
-      steps: [
-        'Partner or cone as offensive player',
-        'Maintain arm-length distance',
-        'Mirror movements: 2 minutes',
-        'React to drives: cut off without reaching, 10 reps',
-        'Contest shots without fouling: 10 reps'
-      ]
-    },
-    {
-      id: 'wall-passing',
-      name: 'Wall Passing Series',
-      category: 'passing',
-      type: 'skill',
-      difficulty: 'beginner',
-      duration: 10,
-      description: 'Passing accuracy and speed against a wall.',
-      videoUrl: 'https://www.youtube.com/watch?v=4C3oZpM5h7k',
-      requiresAccuracyLog: false,
-      metrics: ['completed'],
-      steps: [
-        'Chest passes: 50 reps, hit same spot on wall',
-        'Bounce passes: 50 reps, ball should hit 2/3 distance',
-        'One-hand push passes: 25 each hand',
-        'Overhead passes: 25 reps',
-        'Speed round: as many chest passes in 30 seconds'
-      ]
-    },
-    {
-      id: 'triple-threat',
-      name: 'Triple Threat Moves',
-      category: 'footwork',
-      type: 'skill',
-      difficulty: 'intermediate',
-      duration: 15,
-      description: 'Offensive footwork from triple threat position.',
-      videoUrl: 'https://www.youtube.com/watch?v=YFJ5aI5vF6Y',
-      requiresAccuracyLog: false,
-      metrics: ['completed'],
-      steps: [
-        'Triple threat stance: ball protected, knees bent',
-        'Jab step right, jab step left: 20 total',
-        'Jab and go: attack opposite direction, 10 each way',
-        'Jab and shoot: pull back into shot, 10 each way',
-        'Shot fake to drive: 10 each direction',
-        'Combine all moves in random sequence: 3 minutes'
+        'Stance check',
+        'Sideline slides',
+        'Zig-zag slides'
       ]
     },
     {
@@ -270,17 +230,13 @@ export const initializeDatabase = () => {
       type: 'skill',
       difficulty: 'advanced',
       duration: 20,
-      description: 'Low post offensive moves and counters.',
-      videoUrl: 'https://www.youtube.com/watch?v=YFJ5aI5vF6Y',
+      description: 'Low post offensive moves.',
       requiresAccuracyLog: true,
       metrics: ['makes', 'attempts'],
       steps: [
-        'Drop step baseline: 10 each side',
-        'Drop step middle: 10 each side',
-        'Up and under: 10 each side',
-        'Hook shot: 10 each side',
-        'Face-up jumper from post: 10 attempts',
-        'Track makes on finishing moves'
+        'Drop step baseline',
+        'Drop step middle',
+        'Up and under'
       ]
     }
   ];
@@ -293,33 +249,9 @@ export const initializeDatabase = () => {
       type: 'cardio',
       difficulty: 'intermediate',
       duration: 10,
-      description: 'Classic basketball conditioning drill.',
+      description: 'Classic conditioning drill.',
       metrics: ['reps', 'time'],
-      steps: [
-        'Start at baseline',
-        'Sprint to free throw line and back',
-        'Sprint to half court and back',
-        'Sprint to far free throw line and back',
-        'Sprint to far baseline and back',
-        'That is 1 rep. Rest 45 seconds. Repeat.'
-      ]
-    },
-    {
-      id: 'seventeens',
-      name: '17s (Sideline to Sideline)',
-      category: 'conditioning',
-      type: 'cardio',
-      difficulty: 'advanced',
-      duration: 10,
-      description: 'Sideline sprints for conditioning.',
-      metrics: ['reps', 'time'],
-      steps: [
-        'Start at sideline',
-        'Sprint to opposite sideline and back',
-        'Must complete 17 touches in under set time',
-        'Typical goal: 17 touches in 60-70 seconds',
-        'Rest 1-2 minutes between sets'
-      ]
+      steps: ['Sprint to each line and back']
     },
     {
       id: 'court-sprints',
@@ -330,12 +262,7 @@ export const initializeDatabase = () => {
       duration: 10,
       description: 'Baseline to baseline sprinting.',
       metrics: ['reps', 'time'],
-      steps: [
-        'Sprint baseline to baseline at 100%',
-        'Walk back to start line',
-        'Repeat for set number of reps',
-        'Track time on each sprint'
-      ]
+      steps: ['Sprint baseline to baseline at 100%']
     },
     {
       id: 'squats',
@@ -344,15 +271,9 @@ export const initializeDatabase = () => {
       type: 'lower-body',
       difficulty: 'beginner',
       duration: 10,
-      description: 'Fundamental lower body strength exercise.',
+      description: 'Lower body strength.',
       metrics: ['sets', 'reps', 'weight'],
-      steps: [
-        'Feet shoulder-width apart, toes slightly out',
-        'Keep chest up, core tight',
-        'Lower until thighs parallel to ground',
-        'Drive through heels to stand',
-        'Can be bodyweight, goblet, or barbell'
-      ]
+      steps: ['Feet shoulder-width', 'Lower until parallel', 'Drive through heels']
     },
     {
       id: 'lunges',
@@ -361,66 +282,9 @@ export const initializeDatabase = () => {
       type: 'lower-body',
       difficulty: 'beginner',
       duration: 10,
-      description: 'Single-leg strength and balance.',
+      description: 'Single-leg strength.',
       metrics: ['sets', 'reps', 'weight'],
-      steps: [
-        'Step forward into lunge position',
-        'Both knees at 90 degrees',
-        'Push back to starting position',
-        'Alternate legs or do all one side first',
-        'Can be walking, stationary, or reverse'
-      ]
-    },
-    {
-      id: 'deadlifts',
-      name: 'Deadlifts',
-      category: 'strength',
-      type: 'lower-body',
-      difficulty: 'intermediate',
-      duration: 15,
-      description: 'Posterior chain strength builder.',
-      metrics: ['sets', 'reps', 'weight'],
-      steps: [
-        'Bar over mid-foot, feet hip-width',
-        'Hinge at hips, grip bar outside knees',
-        'Flat back, chest up, shoulders back',
-        'Drive through floor, extend hips',
-        'Control descent back to floor'
-      ]
-    },
-    {
-      id: 'bench-press',
-      name: 'Bench Press',
-      category: 'strength',
-      type: 'upper-body',
-      difficulty: 'intermediate',
-      duration: 15,
-      description: 'Upper body pushing strength.',
-      metrics: ['sets', 'reps', 'weight'],
-      steps: [
-        'Lie flat, eyes under bar',
-        'Grip slightly wider than shoulders',
-        'Unrack, lower to chest with control',
-        'Press up explosively',
-        'Keep feet flat, back slightly arched'
-      ]
-    },
-    {
-      id: 'pull-ups',
-      name: 'Pull-Ups',
-      category: 'strength',
-      type: 'upper-body',
-      difficulty: 'intermediate',
-      duration: 10,
-      description: 'Upper body pulling strength.',
-      metrics: ['sets', 'reps'],
-      steps: [
-        'Hang with arms fully extended',
-        'Pull until chin over bar',
-        'Lower with control',
-        'Can use band assistance if needed',
-        'Vary grip: wide, close, underhand'
-      ]
+      steps: ['Step forward', 'Both knees at 90 degrees', 'Push back']
     },
     {
       id: 'push-ups',
@@ -429,15 +293,9 @@ export const initializeDatabase = () => {
       type: 'upper-body',
       difficulty: 'beginner',
       duration: 5,
-      description: 'Bodyweight pushing exercise.',
+      description: 'Bodyweight pushing.',
       metrics: ['sets', 'reps'],
-      steps: [
-        'Hands shoulder-width, body straight line',
-        'Lower chest to ground',
-        'Push back up to start',
-        'Keep core tight throughout',
-        'Modify on knees if needed'
-      ]
+      steps: ['Hands shoulder-width', 'Lower chest to ground', 'Push back up']
     },
     {
       id: 'planks',
@@ -446,15 +304,9 @@ export const initializeDatabase = () => {
       type: 'core',
       difficulty: 'beginner',
       duration: 5,
-      description: 'Core stability exercise.',
+      description: 'Core stability.',
       metrics: ['sets', 'time'],
-      steps: [
-        'Forearms on ground, elbows under shoulders',
-        'Body in straight line from head to heels',
-        'Squeeze glutes and core',
-        'Hold for prescribed time',
-        'Add side planks for obliques'
-      ]
+      steps: ['Forearms on ground', 'Body straight', 'Hold']
     },
     {
       id: 'box-jumps',
@@ -463,15 +315,9 @@ export const initializeDatabase = () => {
       type: 'explosive',
       difficulty: 'intermediate',
       duration: 10,
-      description: 'Explosive lower body power.',
+      description: 'Explosive power.',
       metrics: ['sets', 'reps'],
-      steps: [
-        'Stand facing box, feet shoulder-width',
-        'Swing arms and explode onto box',
-        'Land softly with knees bent',
-        'Stand fully, then step down',
-        'Start with lower box, progress height'
-      ]
+      steps: ['Stand facing box', 'Explode up', 'Land softly']
     },
     {
       id: 'jump-rope',
@@ -482,13 +328,7 @@ export const initializeDatabase = () => {
       duration: 10,
       description: 'Footwork and conditioning.',
       metrics: ['time', 'reps'],
-      steps: [
-        'Basic bounce: 1 minute',
-        'Alternate feet: 1 minute',
-        'High knees: 30 seconds',
-        'Double unders (if able): 30 seconds',
-        'Rest 30 seconds, repeat circuit'
-      ]
+      steps: ['Basic bounce', 'Alternate feet', 'High knees']
     }
   ];
 
@@ -500,10 +340,10 @@ export const initializeDatabase = () => {
 // ============ USER MANAGEMENT ============
 
 export const createUser = (userData) => {
-  const userId = `user_${Date.now()}`;
+  const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const user = {
     id: userId,
-    email: userData.email,
+    email: userData.email.toLowerCase().trim(),
     name: userData.name,
     role: userData.role,
     createdAt: new Date().toISOString(),
@@ -528,13 +368,54 @@ export const createUser = (userData) => {
   return user;
 };
 
-export const getUser = (userId) => database.users[userId];
+export const getUser = (userId) => {
+  // Reload from localStorage to get latest
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      if (parsed.users && parsed.users[userId]) {
+        return parsed.users[userId];
+      }
+    } catch (e) {}
+  }
+  return database.users[userId];
+};
 
 export const getUserByEmail = (email) => {
-  return Object.values(database.users).find(u => u.email === email);
+  if (!email) return null;
+  
+  const normalizedEmail = email.toLowerCase().trim();
+  
+  // Reload from localStorage to get latest
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      if (parsed.users) {
+        const found = Object.values(parsed.users).find(u => 
+          u.email && u.email.toLowerCase().trim() === normalizedEmail
+        );
+        if (found) return found;
+      }
+    } catch (e) {}
+  }
+  
+  return Object.values(database.users).find(u => 
+    u.email && u.email.toLowerCase().trim() === normalizedEmail
+  );
 };
 
 export const updateUser = (userId, updates) => {
+  // Reload first
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      database.users = parsed.users || {};
+    } catch (e) {}
+  }
+  
   const user = database.users[userId];
   if (user) {
     const updated = { ...user, ...updates, updatedAt: new Date().toISOString() };
@@ -548,7 +429,7 @@ export const updateUser = (userId, updates) => {
 // ============ TEAM MANAGEMENT ============
 
 export const createTeam = (coachId, teamData) => {
-  const teamId = `team_${Date.now()}`;
+  const teamId = `team_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const joinCode = generateJoinCode();
   
   const team = {
@@ -574,11 +455,58 @@ export const createTeam = (coachId, teamData) => {
   return team;
 };
 
-export const getTeam = (teamId) => database.teams[teamId];
+export const getTeam = (teamId) => {
+  if (!teamId) return null;
+  
+  // Reload from localStorage to get latest
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      if (parsed.teams && parsed.teams[teamId]) {
+        return parsed.teams[teamId];
+      }
+    } catch (e) {}
+  }
+  return database.teams[teamId];
+};
 
 export const getTeamByJoinCode = (code) => {
+  if (!code) return null;
+  
   const normalizedCode = code.toUpperCase().trim();
-  return Object.values(database.teams).find(t => t.joinCode === normalizedCode);
+  
+  // ALWAYS reload from localStorage first to get the latest data
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      if (parsed.teams) {
+        // Update local database reference
+        database.teams = parsed.teams;
+        
+        const found = Object.values(parsed.teams).find(t => 
+          t.joinCode && t.joinCode.toUpperCase() === normalizedCode
+        );
+        if (found) {
+          console.log('Found team by join code:', found.name, found.joinCode);
+          return found;
+        }
+      }
+    } catch (e) {
+      console.error('Error parsing stored data:', e);
+    }
+  }
+  
+  // Fallback to in-memory database
+  const result = Object.values(database.teams).find(t => 
+    t.joinCode && t.joinCode.toUpperCase() === normalizedCode
+  );
+  
+  console.log('getTeamByJoinCode result:', code, '->', result?.name || 'NOT FOUND');
+  console.log('Available teams:', Object.values(database.teams).map(t => ({ name: t.name, code: t.joinCode })));
+  
+  return result;
 };
 
 export const getCoachTeams = (coachId) => {
@@ -586,6 +514,16 @@ export const getCoachTeams = (coachId) => {
 };
 
 export const addPlayerToTeam = (teamId, playerId) => {
+  // Reload first
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      database.teams = parsed.teams || {};
+      database.users = parsed.users || {};
+    } catch (e) {}
+  }
+  
   const team = database.teams[teamId];
   if (team && !team.playerIds.includes(playerId)) {
     team.playerIds.push(playerId);
@@ -610,7 +548,7 @@ export const removePlayerFromTeam = (teamId, playerId) => {
 };
 
 export const getTeamPlayers = (teamId) => {
-  const team = database.teams[teamId];
+  const team = getTeam(teamId);
   if (!team) return [];
   return team.playerIds.map(id => getUser(id)).filter(Boolean);
 };
@@ -667,17 +605,6 @@ export const getPlayerAssignments = (playerId, teamId) => {
     .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
 };
 
-export const updateAssignment = (assignmentId, updates) => {
-  const assignment = database.assignments[assignmentId];
-  if (assignment) {
-    const updated = { ...assignment, ...updates, updatedAt: new Date().toISOString() };
-    database.assignments[assignmentId] = updated;
-    saveDatabase();
-    return updated;
-  }
-  return null;
-};
-
 export const deleteAssignment = (assignmentId) => {
   delete database.assignments[assignmentId];
   saveDatabase();
@@ -696,24 +623,17 @@ export const createLog = (playerId, logData) => {
     itemId: logData.itemId,
     itemType: logData.itemType,
     createdAt: new Date().toISOString(),
-    
-    ...(logData.itemType === 'drill' && {
-      makes: logData.makes,
-      attempts: logData.attempts,
-      percentage: logData.attempts > 0 ? Math.round((logData.makes / logData.attempts) * 100) : null,
-      completed: logData.completed
-    }),
-    
-    ...(logData.itemType === 'workout' && {
-      sets: logData.sets,
-      reps: logData.reps,
-      weight: logData.weight,
-      time: logData.time
-    }),
-    
+    makes: logData.makes,
+    attempts: logData.attempts,
+    percentage: logData.attempts > 0 ? Math.round((logData.makes / logData.attempts) * 100) : null,
+    sets: logData.sets,
+    reps: logData.reps,
+    weight: logData.weight,
+    time: logData.time,
     difficulty: logData.difficulty,
-    soreness: logData.soreness || 'none', // none, mild, moderate, severe
-    notes: logData.notes
+    soreness: logData.soreness || 'none',
+    notes: logData.notes,
+    completed: logData.completed !== false
   };
   
   database.logs[logId] = log;
@@ -721,19 +641,11 @@ export const createLog = (playerId, logData) => {
   return log;
 };
 
-export const getLog = (logId) => database.logs[logId];
-
 export const getPlayerLogs = (playerId, options = {}) => {
   let logs = Object.values(database.logs).filter(l => l.playerId === playerId);
   
   if (options.assignmentId) {
     logs = logs.filter(l => l.assignmentId === options.assignmentId);
-  }
-  if (options.itemId) {
-    logs = logs.filter(l => l.itemId === options.itemId);
-  }
-  if (options.since) {
-    logs = logs.filter(l => new Date(l.createdAt) >= new Date(options.since));
   }
   
   return logs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -789,22 +701,8 @@ export const getTeamSchedule = (teamId, options = {}) => {
   if (options.from) {
     events = events.filter(e => new Date(e.date) >= new Date(options.from));
   }
-  if (options.to) {
-    events = events.filter(e => new Date(e.date) <= new Date(options.to));
-  }
   
   return events.sort((a, b) => new Date(a.date) - new Date(b.date));
-};
-
-export const updateScheduleEvent = (eventId, updates) => {
-  const event = database.schedules[eventId];
-  if (event) {
-    const updated = { ...event, ...updates, updatedAt: new Date().toISOString() };
-    database.schedules[eventId] = updated;
-    saveDatabase();
-    return updated;
-  }
-  return null;
 };
 
 export const deleteScheduleEvent = (eventId) => {
@@ -840,64 +738,25 @@ export const getTeamMessages = (teamId, limit = 50) => {
     .slice(-limit);
 };
 
-export const getDirectMessages = (userId1, userId2, teamId, limit = 50) => {
-  return Object.values(database.messages)
-    .filter(m => {
-      if (m.teamId !== teamId) return false;
-      return (m.senderId === userId1 && m.recipientId === userId2) ||
-             (m.senderId === userId2 && m.recipientId === userId1);
-    })
-    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
-    .slice(-limit);
-};
-
-export const markMessageRead = (messageId, userId) => {
-  const message = database.messages[messageId];
-  if (message && !message.readBy.includes(userId)) {
-    message.readBy.push(userId);
-    database.messages[messageId] = message;
-    saveDatabase();
-  }
-};
-
 // ============ DRILL/WORKOUT LIBRARY ============
 
 export const getAllDrills = () => Object.values(database.drills);
-
 export const getDrill = (drillId) => database.drills[drillId];
-
-export const getDrillsByCategory = (category) => {
-  return Object.values(database.drills).filter(d => d.category === category);
-};
-
 export const getAllWorkouts = () => Object.values(database.workouts);
-
 export const getWorkout = (workoutId) => database.workouts[workoutId];
-
-export const getWorkoutsByCategory = (category) => {
-  return Object.values(database.workouts).filter(w => w.category === category);
-};
 
 // ============ AI RECOMMENDATIONS ============
 
 export const saveRecommendation = (teamId, playerId, recommendation) => {
   const recId = `rec_${Date.now()}`;
-  
   const rec = {
     id: recId,
     teamId,
     playerId,
-    type: recommendation.type,
-    category: recommendation.category,
-    title: recommendation.title,
-    description: recommendation.description,
-    suggestedActions: recommendation.suggestedActions || [],
-    dataPoints: recommendation.dataPoints || {},
+    ...recommendation,
     createdAt: new Date().toISOString(),
-    dismissed: false,
-    actedOn: false
+    dismissed: false
   };
-  
   database.aiRecommendations[recId] = rec;
   saveDatabase();
   return rec;
@@ -905,33 +764,15 @@ export const saveRecommendation = (teamId, playerId, recommendation) => {
 
 export const getTeamRecommendations = (teamId, options = {}) => {
   let recs = Object.values(database.aiRecommendations).filter(r => r.teamId === teamId);
-  
   if (!options.includeDismissed) {
     recs = recs.filter(r => !r.dismissed);
   }
-  if (options.playerId) {
-    recs = recs.filter(r => r.playerId === options.playerId);
-  }
-  
   return recs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 };
 
 export const dismissRecommendation = (recId) => {
-  const rec = database.aiRecommendations[recId];
-  if (rec) {
-    rec.dismissed = true;
-    rec.dismissedAt = new Date().toISOString();
-    database.aiRecommendations[recId] = rec;
-    saveDatabase();
-  }
-};
-
-export const markRecommendationActedOn = (recId) => {
-  const rec = database.aiRecommendations[recId];
-  if (rec) {
-    rec.actedOn = true;
-    rec.actedOnAt = new Date().toISOString();
-    database.aiRecommendations[recId] = rec;
+  if (database.aiRecommendations[recId]) {
+    database.aiRecommendations[recId].dismissed = true;
     saveDatabase();
   }
 };
@@ -945,19 +786,6 @@ export const getPlayerStats = (playerId, options = {}) => {
   const totalMakes = shootingLogs.reduce((sum, l) => sum + (l.makes || 0), 0);
   const totalAttempts = shootingLogs.reduce((sum, l) => sum + (l.attempts || 0), 0);
   
-  const workoutLogs = logs.filter(l => l.itemType === 'workout');
-  const completedLogs = logs.filter(l => l.completed !== false);
-  
-  // Soreness tracking
-  const sorenessLogs = logs.filter(l => l.soreness && l.soreness !== 'none');
-  const sorenessCounts = {
-    none: logs.filter(l => !l.soreness || l.soreness === 'none').length,
-    mild: logs.filter(l => l.soreness === 'mild').length,
-    moderate: logs.filter(l => l.soreness === 'moderate').length,
-    severe: logs.filter(l => l.soreness === 'severe').length
-  };
-  
-  // Recent soreness (last 7 days)
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
   const recentLogs = logs.filter(l => new Date(l.createdAt) >= weekAgo);
@@ -970,15 +798,8 @@ export const getPlayerStats = (playerId, options = {}) => {
       attempts: totalAttempts,
       percentage: totalAttempts > 0 ? Math.round((totalMakes / totalAttempts) * 100) : null
     },
-    workouts: {
-      total: workoutLogs.length
-    },
-    completionRate: logs.length > 0 ? Math.round((completedLogs.length / logs.length) * 100) : 100,
-    averageDifficulty: logs.length > 0 
-      ? Math.round(logs.filter(l => l.difficulty).reduce((sum, l) => sum + l.difficulty, 0) / logs.filter(l => l.difficulty).length * 10) / 10
-      : null,
+    completionRate: logs.length > 0 ? Math.round((logs.filter(l => l.completed).length / logs.length) * 100) : 100,
     soreness: {
-      counts: sorenessCounts,
       recentHighSoreness: recentSoreness.length,
       hasRecentSoreness: recentSoreness.length > 0
     }
@@ -998,8 +819,6 @@ export const getTeamStats = (teamId, options = {}) => {
   const totalLogs = playerStats.reduce((sum, p) => sum + p.stats.totalLogs, 0);
   const totalMakes = playerStats.reduce((sum, p) => sum + p.stats.shooting.makes, 0);
   const totalAttempts = playerStats.reduce((sum, p) => sum + p.stats.shooting.attempts, 0);
-  
-  // Team soreness analysis
   const playersWithHighSoreness = playerStats.filter(p => p.stats.soreness.hasRecentSoreness);
   
   return {
@@ -1025,9 +844,10 @@ export const getTeamStats = (teamId, options = {}) => {
   };
 };
 
-// ============ DATABASE RESET (for testing) ============
+// ============ DATABASE RESET ============
 export const resetDatabase = () => {
   localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem('paceHoops_session');
   database = createEmptyDB();
   initializeDatabase();
 };
