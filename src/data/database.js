@@ -298,8 +298,18 @@ export const getTeamAssignments = (teamId) => {
 };
 
 export const getPlayerAssignments = (playerId, teamId) => {
-  forceReload();
-  return Object.values(database.assignments)
+  // CRITICAL: Always reload fresh from localStorage
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      database.assignments = parsed.assignments || {};
+    } catch (e) {
+      console.error('Error reloading assignments:', e);
+    }
+  }
+  
+  const results = Object.values(database.assignments)
     .filter(a => {
       if (a.teamId !== teamId || a.status !== 'active') return false;
       if (a.assignedTo === 'team') return true;
@@ -307,6 +317,9 @@ export const getPlayerAssignments = (playerId, teamId) => {
       return false;
     })
     .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+  
+  console.log('getPlayerAssignments for', playerId, 'team', teamId, ':', results.length, 'assignments');
+  return results;
 };
 
 export const deleteAssignment = (id) => {
