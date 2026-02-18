@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { initializeDatabase, getUser, getTeam, database } from './data/database';
+import { initializeDatabase, getUser, getTeam } from './data/database';
 
 // Auth
 import AuthScreen from './components/auth/AuthScreen';
@@ -29,10 +29,8 @@ function App() {
   const [team, setTeam] = useState(null);
   const [currentView, setCurrentView] = useState('home');
 
-  // Initialize database on mount - but DO NOT auto-login
   useEffect(() => {
     initializeDatabase();
-    // No auto-login - always start at login page
     setIsLoading(false);
   }, []);
 
@@ -75,7 +73,6 @@ function App() {
     }
   };
 
-  // Loading state
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
@@ -89,12 +86,10 @@ function App() {
     );
   }
 
-  // ALWAYS show auth screen first if not logged in this session
   if (!user) {
     return <AuthScreen onLogin={handleLogin} />;
   }
 
-  // Logged in - show main app
   const isCoach = user.role === 'coach';
 
   const renderContent = () => {
@@ -118,7 +113,7 @@ function App() {
     } else {
       switch (currentView) {
         case 'home':
-          return <PlayerDashboard user={user} team={team} onTeamJoined={handleTeamJoined} refreshUser={refreshUser} />;
+          return <PlayerDashboard user={user} team={team} onTeamJoined={handleTeamJoined} refreshUser={refreshUser} setCurrentView={setCurrentView} />;
         case 'training':
           return <PlayerAssignments user={user} team={team} />;
         case 'stats':
@@ -128,14 +123,13 @@ function App() {
         case 'chat':
           return <PlayerChat user={user} team={team} />;
         default:
-          return <PlayerDashboard user={user} team={team} onTeamJoined={handleTeamJoined} refreshUser={refreshUser} />;
+          return <PlayerDashboard user={user} team={team} onTeamJoined={handleTeamJoined} refreshUser={refreshUser} setCurrentView={setCurrentView} />;
       }
     }
   };
 
   return (
     <div className="min-h-screen bg-slate-900 flex">
-      {/* Navigation */}
       <Navigation
         user={user}
         team={team}
@@ -145,7 +139,6 @@ function App() {
         isCoach={isCoach}
       />
 
-      {/* Main Content */}
       <main className="flex-1 md:ml-64 pb-20 md:pb-0 min-h-screen overflow-x-hidden">
         <AnimatePresence mode="wait">
           <motion.div
