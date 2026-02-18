@@ -1,8 +1,38 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { getTeamMessages, getUser } from '../../data/database';
 
 const Navigation = ({ user, team, currentView, setCurrentView, onLogout, isCoach }) => {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Check for unread messages
+  useEffect(() => {
+    const checkUnread = () => {
+      if (team) {
+        const messages = getTeamMessages(team.id);
+        // Count messages not sent by current user that are "new" (last 24 hours and not read)
+        const recentMessages = messages.filter(m => {
+          const isRecent = new Date(m.createdAt) > new Date(Date.now() - 24 * 60 * 60 * 1000);
+          const notFromMe = m.senderId !== user.id;
+          const notRead = !m.readBy?.includes(user.id);
+          return isRecent && notFromMe && notRead;
+        });
+        setUnreadCount(recentMessages.length);
+      }
+    };
+
+    checkUnread();
+    const interval = setInterval(checkUnread, 3000);
+    return () => clearInterval(interval);
+  }, [team, user.id]);
+
+  // Clear unread when viewing chat
+  useEffect(() => {
+    if (currentView === 'chat') {
+      setUnreadCount(0);
+    }
+  }, [currentView]);
 
   const coachNavItems = [
     { id: 'home', label: 'Home', icon: '🏠' },
@@ -10,7 +40,7 @@ const Navigation = ({ user, team, currentView, setCurrentView, onLogout, isCoach
     { id: 'assignments', label: 'Assignments', icon: '📋' },
     { id: 'stats', label: 'Analytics', icon: '📊' },
     { id: 'schedule', label: 'Schedule', icon: '📅' },
-    { id: 'chat', label: 'Chat', icon: '💬' }
+    { id: 'chat', label: 'Chat', icon: '💬', badge: unreadCount }
   ];
 
   const playerNavItems = [
@@ -18,13 +48,20 @@ const Navigation = ({ user, team, currentView, setCurrentView, onLogout, isCoach
     { id: 'training', label: 'Training', icon: '🏋️' },
     { id: 'stats', label: 'My Stats', icon: '📊' },
     { id: 'schedule', label: 'Schedule', icon: '📅' },
-    { id: 'chat', label: 'Chat', icon: '💬' }
+    { id: 'chat', label: 'Chat', icon: '💬', badge: unreadCount }
   ];
 
   const navItems = isCoach ? coachNavItems : playerNavItems;
-
-  // Get first 5 items for mobile bottom nav
   const mobileNavItems = navItems.slice(0, 5);
+
+  const NavBadge = ({ count }) => {
+    if (!count || count === 0) return null;
+    return (
+      <span className="absolute -top-1 -right-1 min-w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center px-1">
+        {count > 99 ? '99+' : count}
+      </span>
+    );
+  };
 
   return (
     <>
@@ -64,13 +101,20 @@ const Navigation = ({ user, team, currentView, setCurrentView, onLogout, isCoach
               <li key={item.id}>
                 <button
                   onClick={() => setCurrentView(item.id)}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-colors ${
+                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-colors relative ${
                     currentView === item.id
                       ? 'bg-orange-500 text-white'
                       : 'text-slate-400 hover:bg-slate-700 hover:text-white'
                   }`}
                 >
-                  <span className="text-xl flex-shrink-0">{item.icon}</span>
+                  <span className="text-xl flex-shrink-0 relative">
+                    {item.icon}
+                    {item.badge > 0 && currentView !== item.id && (
+                      <span className="absolute -top-2 -right-2 min-w-4 h-4 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center px-1">
+                        {item.badge > 99 ? '99+' : item.badge}
+                      </span>
+                    )}
+                  </span>
                   <span className="font-medium truncate">{item.label}</span>
                 </button>
               </li>
@@ -78,7 +122,7 @@ const Navigation = ({ user, team, currentView, setCurrentView, onLogout, isCoach
           </ul>
         </nav>
 
-        {/* User Info & Logout - ALWAYS VISIBLE */}
+        {/* User Info & Logout */}
         <div className="p-4 border-t border-slate-700 mt-auto">
           <div className="flex items-center space-x-3 mb-3">
             <div className="w-10 h-10 bg-slate-700 rounded-full flex items-center justify-center flex-shrink-0">
@@ -110,13 +154,20 @@ const Navigation = ({ user, team, currentView, setCurrentView, onLogout, isCoach
             <button
               key={item.id}
               onClick={() => setCurrentView(item.id)}
-              className={`flex flex-col items-center justify-center px-2 py-1 min-w-0 flex-1 ${
+              className={`flex flex-col items-center justify-center px-2 py-1 min-w-0 flex-1 relative ${
                 currentView === item.id
                   ? 'text-orange-500'
                   : 'text-slate-400'
               }`}
             >
-              <span className="text-xl">{item.icon}</span>
+              <span className="text-xl relative">
+                {item.icon}
+                {item.badge > 0 && currentView !== item.id && (
+                  <span className="absolute -top-1 -right-2 min-w-4 h-4 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center px-1">
+                    {item.badge > 9 ? '9+' : item.badge}
+                  </span>
+                )}
+              </span>
               <span className="text-xs mt-1 truncate">{item.label}</span>
             </button>
           ))}
@@ -195,13 +246,20 @@ const Navigation = ({ user, team, currentView, setCurrentView, onLogout, isCoach
                       : 'text-slate-400 hover:bg-slate-700 hover:text-white'
                   }`}
                 >
-                  <span className="text-xl">{item.icon}</span>
+                  <span className="text-xl relative">
+                    {item.icon}
+                    {item.badge > 0 && currentView !== item.id && (
+                      <span className="absolute -top-1 -right-2 min-w-4 h-4 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center px-1">
+                        {item.badge}
+                      </span>
+                    )}
+                  </span>
                   <span className="font-medium">{item.label}</span>
                 </button>
               ))}
             </div>
 
-            {/* Logout Button - ALWAYS VISIBLE IN MOBILE MENU */}
+            {/* Logout Button */}
             <div className="p-4 border-t border-slate-700">
               <button
                 onClick={() => {
