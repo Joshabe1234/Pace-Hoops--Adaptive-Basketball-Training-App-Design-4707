@@ -49,13 +49,15 @@ const PlayerAssignments = ({ user, team }) => {
     feeling: 'good'
   });
 
-  // Auto refresh every 3 seconds to get new assignments
+  // Auto refresh every 3 seconds to get new assignments (but not when modal is open)
   useEffect(() => {
+    if (showGoalModal || loggingItem || loggingGoalDay) return; // Don't refresh when modals are open
+    
     const interval = setInterval(() => {
       setRefreshKey(k => k + 1);
     }, 3000);
     return () => clearInterval(interval);
-  }, []);
+  }, [showGoalModal, loggingItem, loggingGoalDay]);
 
   // Get fresh data on each render
   const logs = getPlayerLogs(user.id);
@@ -229,82 +231,82 @@ const PlayerAssignments = ({ user, team }) => {
   const activeGoals = personalGoals.filter(g => g.status === 'active');
 
   // Define renderGoalModal BEFORE any early returns
-  const renderGoalModal = () => (
-    <AnimatePresence>
-      {showGoalModal && (
+  const renderGoalModal = () => {
+    if (!showGoalModal) return null;
+    
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50"
+        onClick={() => setShowGoalModal(false)}
+      >
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50"
-          onClick={() => setShowGoalModal(false)}
+          initial={{ scale: 0.9 }}
+          animate={{ scale: 1 }}
+          exit={{ scale: 0.9 }}
+          className="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-md p-6 max-h-[90vh] overflow-y-auto"
+          onClick={(e) => e.stopPropagation()}
         >
-          <motion.div
-            initial={{ scale: 0.9 }}
-            animate={{ scale: 1 }}
-            exit={{ scale: 0.9 }}
-            className="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-md p-6 max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-xl font-bold text-white mb-4">Create a Goal</h2>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">What do you want to improve?</label>
-                <textarea
-                  value={newGoal.description}
-                  onChange={(e) => setNewGoal(p => ({ ...p, description: e.target.value }))}
-                  placeholder="e.g., Improve my three-point shooting..."
-                  rows={2}
-                  className="w-full p-3 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-slate-500 resize-none"
-                />
-              </div>
+          <h2 className="text-xl font-bold text-white mb-4">Create a Goal</h2>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">What do you want to improve?</label>
+              <textarea
+                value={newGoal.description}
+                onChange={(e) => setNewGoal(p => ({ ...p, description: e.target.value }))}
+                placeholder="e.g., Improve my three-point shooting..."
+                rows={2}
+                className="w-full p-3 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-slate-500 resize-none"
+              />
+            </div>
 
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">Focus Area</label>
+              <select
+                value={newGoal.focusArea}
+                onChange={(e) => setNewGoal(p => ({ ...p, focusArea: e.target.value }))}
+                className="w-full p-3 bg-slate-700 border border-slate-600 rounded-xl text-white"
+              >
+                <option value="shooting">Shooting</option>
+                <option value="ballHandling">Ball Handling</option>
+                <option value="defense">Defense</option>
+                <option value="conditioning">Conditioning</option>
+                <option value="strength">Strength</option>
+                <option value="overall">Overall</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">Duration: {newGoal.timeframe} weeks</label>
+              <input type="range" min="2" max="12" value={newGoal.timeframe} onChange={(e) => setNewGoal(p => ({ ...p, timeframe: parseInt(e.target.value) }))} className="w-full" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">Focus Area</label>
-                <select
-                  value={newGoal.focusArea}
-                  onChange={(e) => setNewGoal(p => ({ ...p, focusArea: e.target.value }))}
-                  className="w-full p-3 bg-slate-700 border border-slate-600 rounded-xl text-white"
-                >
-                  <option value="shooting">Shooting</option>
-                  <option value="ballHandling">Ball Handling</option>
-                  <option value="defense">Defense</option>
-                  <option value="conditioning">Conditioning</option>
-                  <option value="strength">Strength</option>
-                  <option value="overall">Overall</option>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Days per week</label>
+                <select value={newGoal.daysPerWeek} onChange={(e) => setNewGoal(p => ({ ...p, daysPerWeek: parseInt(e.target.value) }))} className="w-full p-3 bg-slate-700 border border-slate-600 rounded-xl text-white">
+                  {[2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n} days</option>)}
                 </select>
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">Duration: {newGoal.timeframe} weeks</label>
-                <input type="range" min="2" max="12" value={newGoal.timeframe} onChange={(e) => setNewGoal(p => ({ ...p, timeframe: parseInt(e.target.value) }))} className="w-full" />
+                <label className="block text-sm font-medium text-slate-300 mb-2">Minutes/session</label>
+                <select value={newGoal.minutesPerDay} onChange={(e) => setNewGoal(p => ({ ...p, minutesPerDay: parseInt(e.target.value) }))} className="w-full p-3 bg-slate-700 border border-slate-600 rounded-xl text-white">
+                  {[30, 45, 60, 75, 90].map(n => <option key={n} value={n}>{n} min</option>)}
+                </select>
               </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Days per week</label>
-                  <select value={newGoal.daysPerWeek} onChange={(e) => setNewGoal(p => ({ ...p, daysPerWeek: parseInt(e.target.value) }))} className="w-full p-3 bg-slate-700 border border-slate-600 rounded-xl text-white">
-                    {[2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n} days</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Minutes/session</label>
-                  <select value={newGoal.minutesPerDay} onChange={(e) => setNewGoal(p => ({ ...p, minutesPerDay: parseInt(e.target.value) }))} className="w-full p-3 bg-slate-700 border border-slate-600 rounded-xl text-white">
-                    {[30, 45, 60, 75, 90].map(n => <option key={n} value={n}>{n} min</option>)}
-                  </select>
-                </div>
-              </div>
-
-              <button onClick={handleCreateGoal} disabled={!newGoal.description} className="w-full p-3 bg-blue-500 text-white rounded-xl font-semibold hover:bg-blue-400 disabled:opacity-50">
-                Create Training Plan
-              </button>
             </div>
-          </motion.div>
+
+            <button onClick={handleCreateGoal} disabled={!newGoal.description} className="w-full p-3 bg-blue-500 text-white rounded-xl font-semibold hover:bg-blue-400 disabled:opacity-50">
+              Create Training Plan
+            </button>
+          </div>
         </motion.div>
-      )}
-    </AnimatePresence>
-  );
+      </motion.div>
+    );
+  };
 
   // No team - show personal goals only
   if (!team) {
