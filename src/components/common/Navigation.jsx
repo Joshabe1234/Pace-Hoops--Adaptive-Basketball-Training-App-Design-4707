@@ -1,38 +1,45 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { getTeamMessages, getUser } from '../../data/database';
+import { getTeamMessages } from '../../data/database';
 
 const Navigation = ({ user, team, currentView, setCurrentView, onLogout, isCoach }) => {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [lastViewedChat, setLastViewedChat] = useState(() => {
+    const stored = localStorage.getItem(`paceHoops_lastChat_${user?.id}`);
+    return stored ? new Date(stored) : new Date(0);
+  });
 
   // Check for unread messages
   useEffect(() => {
     const checkUnread = () => {
-      if (team) {
+      if (team && user) {
         const messages = getTeamMessages(team.id);
-        // Count messages not sent by current user that are "new" (last 24 hours and not read)
-        const recentMessages = messages.filter(m => {
-          const isRecent = new Date(m.createdAt) > new Date(Date.now() - 24 * 60 * 60 * 1000);
+        // Count messages not sent by current user that came after last viewed
+        const unread = messages.filter(m => {
+          const msgDate = new Date(m.createdAt);
           const notFromMe = m.senderId !== user.id;
-          const notRead = !m.readBy?.includes(user.id);
-          return isRecent && notFromMe && notRead;
+          const isNew = msgDate > lastViewedChat;
+          return notFromMe && isNew;
         });
-        setUnreadCount(recentMessages.length);
+        setUnreadCount(unread.length);
       }
     };
 
     checkUnread();
     const interval = setInterval(checkUnread, 3000);
     return () => clearInterval(interval);
-  }, [team, user.id]);
+  }, [team, user, lastViewedChat]);
 
   // Clear unread when viewing chat
   useEffect(() => {
     if (currentView === 'chat') {
+      const now = new Date();
+      setLastViewedChat(now);
+      localStorage.setItem(`paceHoops_lastChat_${user?.id}`, now.toISOString());
       setUnreadCount(0);
     }
-  }, [currentView]);
+  }, [currentView, user?.id]);
 
   const coachNavItems = [
     { id: 'home', label: 'Home', icon: '🏠' },
@@ -53,15 +60,6 @@ const Navigation = ({ user, team, currentView, setCurrentView, onLogout, isCoach
 
   const navItems = isCoach ? coachNavItems : playerNavItems;
   const mobileNavItems = navItems.slice(0, 5);
-
-  const NavBadge = ({ count }) => {
-    if (!count || count === 0) return null;
-    return (
-      <span className="absolute -top-1 -right-1 min-w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center px-1">
-        {count > 99 ? '99+' : count}
-      </span>
-    );
-  };
 
   return (
     <>
