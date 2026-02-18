@@ -17,7 +17,7 @@ const createEmptyDB = () => ({
   aiRecommendations: {}
 });
 
-// Load database from localStorage
+// Load database from localStorage - ALWAYS fresh read
 const loadDatabase = () => {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -45,41 +45,32 @@ const loadDatabase = () => {
 const saveDatabase = () => {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(database));
+    console.log('Database saved. Teams:', Object.keys(database.teams).length);
   } catch (e) {
     console.error('Error saving database:', e);
   }
 };
 
-// Reload database from localStorage
-const reloadDatabase = () => {
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored) {
-    try {
-      const parsed = JSON.parse(stored);
-      database.users = parsed.users || {};
-      database.teams = parsed.teams || {};
-      database.drills = parsed.drills || {};
-      database.workouts = parsed.workouts || {};
-      database.assignments = parsed.assignments || {};
-      database.logs = parsed.logs || {};
-      database.messages = parsed.messages || {};
-      database.schedules = parsed.schedules || {};
-      database.aiRecommendations = parsed.aiRecommendations || {};
-    } catch (e) {}
-  }
+// Force reload from localStorage
+const forceReload = () => {
+  const fresh = loadDatabase();
+  database.users = fresh.users;
+  database.teams = fresh.teams;
+  database.drills = fresh.drills;
+  database.workouts = fresh.workouts;
+  database.assignments = fresh.assignments;
+  database.logs = fresh.logs;
+  database.messages = fresh.messages;
+  database.schedules = fresh.schedules;
+  database.aiRecommendations = fresh.aiRecommendations;
 };
 
 // The database object
 export let database = loadDatabase();
 
-// Sync every second
-if (typeof window !== 'undefined') {
-  setInterval(reloadDatabase, 1000);
-}
-
 // Initialize drill and workout library
 export const initializeDatabase = () => {
-  reloadDatabase();
+  forceReload();
 
   if (Object.keys(database.drills).length > 0) {
     return;
@@ -115,6 +106,7 @@ export const initializeDatabase = () => {
 // ============ USER MANAGEMENT ============
 
 export const createUser = (userData) => {
+  forceReload();
   const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const user = {
     id: userId,
@@ -136,19 +128,19 @@ export const createUser = (userData) => {
 };
 
 export const getUser = (userId) => {
-  reloadDatabase();
+  forceReload();
   return database.users[userId];
 };
 
 export const getUserByEmail = (email) => {
   if (!email) return null;
-  reloadDatabase();
+  forceReload();
   const normalizedEmail = email.toLowerCase().trim();
   return Object.values(database.users).find(u => u.email?.toLowerCase().trim() === normalizedEmail);
 };
 
 export const updateUser = (userId, updates) => {
-  reloadDatabase();
+  forceReload();
   const user = database.users[userId];
   if (user) {
     database.users[userId] = { ...user, ...updates, updatedAt: new Date().toISOString() };
@@ -161,6 +153,7 @@ export const updateUser = (userId, updates) => {
 // ============ TEAM MANAGEMENT ============
 
 export const createTeam = (coachId, teamData) => {
+  forceReload();
   const teamId = `team_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const joinCode = generateJoinCode();
   const team = {
@@ -174,9 +167,13 @@ export const createTeam = (coachId, teamData) => {
     createdAt: new Date().toISOString()
   };
   database.teams[teamId] = team;
-  const coach = getUser(coachId);
+  
+  console.log('Created team:', team.name, 'with code:', joinCode);
+  console.log('All teams now:', Object.values(database.teams).map(t => ({ name: t.name, code: t.joinCode })));
+  
+  const coach = database.users[coachId];
   if (coach) {
-    updateUser(coachId, { teamIds: [...(coach.teamIds || []), teamId] });
+    database.users[coachId] = { ...coach, teamIds: [...(coach.teamIds || []), teamId] };
   }
   saveDatabase();
   return team;
@@ -184,48 +181,73 @@ export const createTeam = (coachId, teamData) => {
 
 export const getTeam = (teamId) => {
   if (!teamId) return null;
-  reloadDatabase();
+  forceReload();
   return database.teams[teamId];
 };
 
 export const getTeamByJoinCode = (code) => {
   if (!code) return null;
-  reloadDatabase();
+  
+  // CRITICAL: Force reload from localStorage to get latest data
+  forceReload();
+  
   const normalizedCode = code.toUpperCase().trim();
-  return Object.values(database.teams).find(t => t.joinCode?.toUpperCase() === normalizedCode);
+  
+  console.log('Looking for team with code:', normalizedCode);
+  console.log('Available teams:', Object.values(database.teams).map(t => ({ name: t.name, code: t.joinCode })));
+  
+  const found = Object.values(database.teams).find(t => 
+    t.joinCode && t.joinCode.toUpperCase().trim() === normalizedCode
+  );
+  
+  if (found) {
+    console.log('Found team:', found.name);
+  } else {
+    console.log('Team NOT found for code:', normalizedCode);
+  }
+  
+  return found || null;
 };
 
 export const getCoachTeams = (coachId) => {
-  reloadDatabase();
+  forceReload();
   return Object.values(database.teams).filter(t => t.coachId === coachId);
 };
 
 export const addPlayerToTeam = (teamId, playerId) => {
-  reloadDatabase();
+  forceReload();
   const team = database.teams[teamId];
   if (!team) return { error: 'Team not found' };
   
-  // Check roster cap
   if (team.playerIds && team.playerIds.length >= ROSTER_CAP) {
     return { error: `Team has reached maximum roster size (${ROSTER_CAP} players)` };
   }
   
+  if (!team.playerIds) team.playerIds = [];
   if (!team.playerIds.includes(playerId)) {
     team.playerIds.push(playerId);
     database.teams[teamId] = team;
-    updateUser(playerId, { teamId });
+    
+    const player = database.users[playerId];
+    if (player) {
+      database.users[playerId] = { ...player, teamId };
+    }
     saveDatabase();
   }
   return team;
 };
 
 export const removePlayerFromTeam = (teamId, playerId) => {
-  reloadDatabase();
+  forceReload();
   const team = database.teams[teamId];
   if (team) {
-    team.playerIds = team.playerIds.filter(id => id !== playerId);
+    team.playerIds = (team.playerIds || []).filter(id => id !== playerId);
     database.teams[teamId] = team;
-    updateUser(playerId, { teamId: null });
+    
+    const player = database.users[playerId];
+    if (player) {
+      database.users[playerId] = { ...player, teamId: null };
+    }
     saveDatabase();
     return team;
   }
@@ -235,7 +257,7 @@ export const removePlayerFromTeam = (teamId, playerId) => {
 export const getTeamPlayers = (teamId) => {
   const team = getTeam(teamId);
   if (!team) return [];
-  return team.playerIds.map(id => getUser(id)).filter(Boolean);
+  return (team.playerIds || []).map(id => database.users[id]).filter(Boolean);
 };
 
 const generateJoinCode = () => {
@@ -250,6 +272,7 @@ const generateJoinCode = () => {
 // ============ ASSIGNMENT MANAGEMENT ============
 
 export const createAssignment = (coachId, teamId, data) => {
+  forceReload();
   const id = `assign_${Date.now()}`;
   const assignment = {
     id, coachId, teamId,
@@ -268,14 +291,14 @@ export const createAssignment = (coachId, teamId, data) => {
 };
 
 export const getTeamAssignments = (teamId) => {
-  reloadDatabase();
+  forceReload();
   return Object.values(database.assignments)
     .filter(a => a.teamId === teamId && a.status === 'active')
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 };
 
 export const getPlayerAssignments = (playerId, teamId) => {
-  reloadDatabase();
+  forceReload();
   return Object.values(database.assignments)
     .filter(a => {
       if (a.teamId !== teamId || a.status !== 'active') return false;
@@ -287,6 +310,7 @@ export const getPlayerAssignments = (playerId, teamId) => {
 };
 
 export const deleteAssignment = (id) => {
+  forceReload();
   delete database.assignments[id];
   saveDatabase();
 };
@@ -294,6 +318,7 @@ export const deleteAssignment = (id) => {
 // ============ LOG MANAGEMENT ============
 
 export const createLog = (playerId, data) => {
+  forceReload();
   const id = `log_${Date.now()}`;
   const log = {
     id, playerId,
@@ -319,21 +344,21 @@ export const createLog = (playerId, data) => {
 };
 
 export const getPlayerLogs = (playerId, options = {}) => {
-  reloadDatabase();
+  forceReload();
   let logs = Object.values(database.logs).filter(l => l.playerId === playerId);
   if (options.assignmentId) logs = logs.filter(l => l.assignmentId === options.assignmentId);
   return logs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 };
 
 export const getAssignmentLogs = (assignmentId) => {
-  reloadDatabase();
+  forceReload();
   return Object.values(database.logs).filter(l => l.assignmentId === assignmentId);
 };
 
 export const getTeamLogs = (teamId, options = {}) => {
   const team = getTeam(teamId);
   if (!team) return [];
-  let logs = Object.values(database.logs).filter(l => team.playerIds.includes(l.playerId));
+  let logs = Object.values(database.logs).filter(l => (team.playerIds || []).includes(l.playerId));
   if (options.since) logs = logs.filter(l => new Date(l.createdAt) >= new Date(options.since));
   return logs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 };
@@ -341,6 +366,7 @@ export const getTeamLogs = (teamId, options = {}) => {
 // ============ SCHEDULE MANAGEMENT ============
 
 export const createScheduleEvent = (coachId, teamId, data) => {
+  forceReload();
   const id = `event_${Date.now()}`;
   const event = { id, coachId, teamId, ...data, createdAt: new Date().toISOString() };
   database.schedules[id] = event;
@@ -349,13 +375,14 @@ export const createScheduleEvent = (coachId, teamId, data) => {
 };
 
 export const getTeamSchedule = (teamId) => {
-  reloadDatabase();
+  forceReload();
   return Object.values(database.schedules)
     .filter(e => e.teamId === teamId)
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 };
 
 export const deleteScheduleEvent = (id) => {
+  forceReload();
   delete database.schedules[id];
   saveDatabase();
 };
@@ -363,6 +390,7 @@ export const deleteScheduleEvent = (id) => {
 // ============ MESSAGE MANAGEMENT ============
 
 export const createMessage = (senderId, data) => {
+  forceReload();
   const id = `msg_${Date.now()}`;
   const message = {
     id, senderId,
@@ -377,7 +405,7 @@ export const createMessage = (senderId, data) => {
 };
 
 export const getTeamMessages = (teamId, limit = 50) => {
-  reloadDatabase();
+  forceReload();
   return Object.values(database.messages)
     .filter(m => m.teamId === teamId)
     .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
@@ -385,7 +413,7 @@ export const getTeamMessages = (teamId, limit = 50) => {
 };
 
 export const markMessageRead = (messageId, userId) => {
-  reloadDatabase();
+  forceReload();
   const msg = database.messages[messageId];
   if (msg && !msg.readBy?.includes(userId)) {
     msg.readBy = [...(msg.readBy || []), userId];
@@ -396,15 +424,21 @@ export const markMessageRead = (messageId, userId) => {
 
 // ============ LIBRARY ============
 
-export const getAllDrills = () => Object.values(database.drills);
+export const getAllDrills = () => {
+  forceReload();
+  return Object.values(database.drills);
+};
 export const getDrill = (id) => database.drills[id];
-export const getAllWorkouts = () => Object.values(database.workouts);
+export const getAllWorkouts = () => {
+  forceReload();
+  return Object.values(database.workouts);
+};
 export const getWorkout = (id) => database.workouts[id];
 
 // ============ AI RECOMMENDATIONS ============
 
 export const getTeamRecommendations = (teamId) => {
-  reloadDatabase();
+  forceReload();
   return Object.values(database.aiRecommendations).filter(r => r.teamId === teamId && !r.dismissed);
 };
 
@@ -437,9 +471,9 @@ export const getTeamStats = (teamId) => {
   const team = getTeam(teamId);
   if (!team) return null;
   
-  const playerStats = team.playerIds.map(id => ({
+  const playerStats = (team.playerIds || []).map(id => ({
     playerId: id,
-    player: getUser(id),
+    player: database.users[id],
     stats: getPlayerStats(id)
   }));
 
