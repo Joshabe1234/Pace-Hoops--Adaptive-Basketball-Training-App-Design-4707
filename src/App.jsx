@@ -35,8 +35,9 @@ function App() {
   }, []);
 
   const handleLogin = (loggedInUser, userTeam) => {
+    console.log('handleLogin called with:', loggedInUser, userTeam);
     setUser(loggedInUser);
-    setTeam(userTeam);
+    setTeam(userTeam || null);
     setCurrentView('home');
   };
 
@@ -47,10 +48,12 @@ function App() {
   };
 
   const handleTeamJoined = (newTeam) => {
+    console.log('handleTeamJoined:', newTeam);
     setTeam(newTeam);
   };
 
   const handleTeamCreated = (newTeam) => {
+    console.log('handleTeamCreated:', newTeam);
     setTeam(newTeam);
   };
 
@@ -69,7 +72,9 @@ function App() {
   const refreshTeam = () => {
     if (team) {
       const refreshedTeam = getTeam(team.id);
-      setTeam(refreshedTeam);
+      if (refreshedTeam) {
+        setTeam(refreshedTeam);
+      }
     }
   };
 
@@ -91,6 +96,9 @@ function App() {
   }
 
   const isCoach = user.role === 'coach';
+
+  // Debug log
+  console.log('Rendering app with user:', user?.name, 'team:', team?.name);
 
   const renderContent = () => {
     if (isCoach) {
