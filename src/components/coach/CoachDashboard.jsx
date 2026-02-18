@@ -6,12 +6,10 @@ import {
   getTeamAssignments,
   getTeamLogs,
   getTeamStats,
-  getTeamRecommendations,
   getDrill,
   getWorkout,
   getUser
 } from '../../data/database';
-import paceAI from '../../services/paceAI';
 
 const CoachDashboard = ({ user, team, onTeamCreated, refreshTeam }) => {
   const [showCreateTeam, setShowCreateTeam] = useState(false);
@@ -133,9 +131,6 @@ const CoachDashboard = ({ user, team, onTeamCreated, refreshTeam }) => {
   weekAgo.setDate(weekAgo.getDate() - 7);
   const recentLogs = getTeamLogs(team.id, { since: weekAgo });
 
-  // Generate AI insights
-  const insights = paceAI.analyzeTeam(team.id);
-
   // Get assignment target label
   const getAssignmentTarget = (assignment) => {
     if (assignment.assignedTo === 'team') {
@@ -203,38 +198,6 @@ const CoachDashboard = ({ user, team, onTeamCreated, refreshTeam }) => {
           </p>
         </div>
       </div>
-
-      {/* AI Insights */}
-      {insights && insights.length > 0 && (
-        <div className="bg-gradient-to-br from-slate-800 to-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
-          <div className="p-4 border-b border-slate-700 flex items-center space-x-2">
-            <span className="text-xl">🤖</span>
-            <h2 className="font-semibold text-white">AI Insights</h2>
-          </div>
-          <div className="p-4 space-y-3">
-            {insights.slice(0, 3).map((insight, index) => (
-              <div 
-                key={index}
-                className={`p-3 rounded-xl border ${
-                  insight.type === 'concern' ? 'bg-red-500/10 border-red-500/30' :
-                  insight.type === 'achievement' ? 'bg-green-500/10 border-green-500/30' :
-                  'bg-blue-500/10 border-blue-500/30'
-                }`}
-              >
-                <div className="flex items-start space-x-3">
-                  <span className="text-lg">
-                    {insight.type === 'concern' ? '⚠️' : insight.type === 'achievement' ? '🌟' : '💡'}
-                  </span>
-                  <div>
-                    <p className="font-medium text-white">{insight.title}</p>
-                    <p className="text-sm text-slate-400 mt-1">{insight.description}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Active Assignments */}
       <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
