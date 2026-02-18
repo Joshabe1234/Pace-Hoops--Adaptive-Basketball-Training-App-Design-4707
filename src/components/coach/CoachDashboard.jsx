@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { 
   createTeam, 
@@ -15,16 +15,17 @@ const CoachDashboard = ({ user, team, onTeamCreated, refreshTeam }) => {
   const [showCreateTeam, setShowCreateTeam] = useState(false);
   const [teamName, setTeamName] = useState('');
   const [teamLevel, setTeamLevel] = useState('');
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [, setRefreshKey] = useState(0);
 
-  // Auto-refresh data every 3 seconds
+  // Auto-refresh data every 3 seconds - only if we have a team
   useEffect(() => {
+    if (!team) return;
+    
     const interval = setInterval(() => {
       setRefreshKey(k => k + 1);
-      if (refreshTeam) refreshTeam();
     }, 3000);
     return () => clearInterval(interval);
-  }, [refreshTeam]);
+  }, [team]);
 
   const handleCreateTeam = () => {
     if (!teamName.trim()) return;
@@ -40,7 +41,7 @@ const CoachDashboard = ({ user, team, onTeamCreated, refreshTeam }) => {
     setTeamLevel('');
   };
 
-  // No team yet - show create team flow
+  // If no team, show create team option
   if (!team) {
     return (
       <div className="p-6">
@@ -121,17 +122,15 @@ const CoachDashboard = ({ user, team, onTeamCreated, refreshTeam }) => {
     );
   }
 
-  // Has team - show dashboard
+  // Has team - get data
   const players = getTeamPlayers(team.id);
   const assignments = getTeamAssignments(team.id);
   const stats = getTeamStats(team.id);
   
-  // Get recent logs (last 7 days)
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
   const recentLogs = getTeamLogs(team.id, { since: weekAgo });
 
-  // Get assignment target label
   const getAssignmentTarget = (assignment) => {
     if (assignment.assignedTo === 'team') {
       return { label: 'Team', color: 'bg-blue-500/20 text-blue-400' };
@@ -145,7 +144,6 @@ const CoachDashboard = ({ user, team, onTeamCreated, refreshTeam }) => {
         return { label: assignedPlayers[0].name, color: 'bg-purple-500/20 text-purple-400' };
       }
       
-      // Check if it's position-based
       const positions = [...new Set(assignedPlayers.map(p => p.position).filter(Boolean))];
       if (positions.length === 1 && assignedPlayers.length > 1) {
         return { label: `${positions[0]}s (${assignedPlayers.length})`, color: 'bg-green-500/20 text-green-400' };
@@ -157,7 +155,7 @@ const CoachDashboard = ({ user, team, onTeamCreated, refreshTeam }) => {
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-6" key={refreshKey}>
+    <div className="p-4 md:p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -165,7 +163,6 @@ const CoachDashboard = ({ user, team, onTeamCreated, refreshTeam }) => {
           <p className="text-slate-400">Welcome back, Coach {user.name?.split(' ')[0]}</p>
         </div>
         
-        {/* Join Code Banner */}
         <div className="bg-slate-800 rounded-xl p-3 border border-slate-700">
           <p className="text-xs text-slate-400 mb-1">Team Join Code</p>
           <p className="font-mono text-xl text-orange-400 tracking-wider">{team.joinCode}</p>
@@ -239,7 +236,6 @@ const CoachDashboard = ({ user, team, onTeamCreated, refreshTeam }) => {
                           {items.length} {assignment.type}s • Due {dueDate.toLocaleDateString()}
                           {isOverdue && <span className="text-red-400 ml-2">(Overdue)</span>}
                         </p>
-                        {/* Show drill names */}
                         <div className="flex flex-wrap gap-1 mt-2">
                           {items.slice(0, 3).map(item => (
                             <span key={item.id} className="px-2 py-0.5 bg-slate-600 text-slate-300 text-xs rounded">
