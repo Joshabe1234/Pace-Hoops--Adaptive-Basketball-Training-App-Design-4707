@@ -228,40 +228,7 @@ const PlayerAssignments = ({ user, team }) => {
 
   const activeGoals = personalGoals.filter(g => g.status === 'active');
 
-  // No team - show personal goals only
-  if (!team) {
-    return (
-      <div className="p-4 md:p-6 space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Training</h1>
-          <p className="text-slate-400">Your personal training goals</p>
-        </div>
-
-        <button
-          onClick={() => setShowGoalModal(true)}
-          className="w-full p-4 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl text-white font-medium hover:from-blue-400 hover:to-blue-500"
-        >
-          + Create New Goal
-        </button>
-
-        {activeGoals.length === 0 ? (
-          <div className="bg-slate-800 rounded-xl border border-slate-700 p-8 text-center">
-            <span className="text-3xl">🎯</span>
-            <h3 className="text-lg font-semibold text-white mt-4">No Personal Goals Yet</h3>
-            <p className="text-slate-400">Create a goal and we'll build a training plan for you.</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {/* Goals list would go here - same as below */}
-          </div>
-        )}
-
-        {/* Goal Modal - same as below */}
-        {showGoalModal && renderGoalModal()}
-      </div>
-    );
-  }
-
+  // Define renderGoalModal BEFORE any early returns
   const renderGoalModal = () => (
     <AnimatePresence>
       {showGoalModal && (
@@ -338,6 +305,40 @@ const PlayerAssignments = ({ user, team }) => {
       )}
     </AnimatePresence>
   );
+
+  // No team - show personal goals only
+  if (!team) {
+    return (
+      <div className="p-4 md:p-6 space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Training</h1>
+          <p className="text-slate-400">Your personal training goals</p>
+        </div>
+
+        <button
+          onClick={() => setShowGoalModal(true)}
+          className="w-full p-4 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl text-white font-medium hover:from-blue-400 hover:to-blue-500"
+        >
+          + Create New Goal
+        </button>
+
+        {activeGoals.length === 0 ? (
+          <div className="bg-slate-800 rounded-xl border border-slate-700 p-8 text-center">
+            <span className="text-3xl">🎯</span>
+            <h3 className="text-lg font-semibold text-white mt-4">No Personal Goals Yet</h3>
+            <p className="text-slate-400">Create a goal and we'll build a training plan for you.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Goals list would go here - same as below */}
+          </div>
+        )}
+
+        {/* Goal Modal */}
+        {renderGoalModal()}
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6 space-y-6" key={refreshKey}>
