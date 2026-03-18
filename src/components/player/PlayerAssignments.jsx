@@ -12,11 +12,12 @@ import paceAI from '../../services/paceAI';
 const PlayerAssignments = ({ user, team }) => {
   const [selectedAssignment, setSelectedAssignment] = useState(null);
   const [loggingItem, setLoggingItem] = useState(null);
-  const [loggingContext, setLoggingContext] = useState(null); // { type: 'assignment' | 'goal', id, weekIndex, dayIndex }
+  const [loggingContext, setLoggingContext] = useState(null);
   const [activeTab, setActiveTab] = useState(team ? 'team' : 'personal');
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState(null);
   const [selectedWeek, setSelectedWeek] = useState(null);
+  const [expandedDrill, setExpandedDrill] = useState(null); // For showing drill steps
   
   const [personalGoals, setPersonalGoals] = useState(() => {
     const stored = localStorage.getItem(`paceHoops_goals_${user.id}`);
@@ -41,7 +42,7 @@ const PlayerAssignments = ({ user, team }) => {
     notes: ''
   });
 
-  // Only auto-refresh when no modals/expansions are open
+  // Auto-refresh when no modals open
   const [refreshKey, setRefreshKey] = useState(0);
   useEffect(() => {
     if (showGoalModal || loggingItem || selectedGoal || selectedAssignment) return;
@@ -59,9 +60,7 @@ const PlayerAssignments = ({ user, team }) => {
 
   const handleCreateGoal = () => {
     if (!newGoal.description) return;
-
     const plan = paceAI.generateTrainingPlan(newGoal, { age: user.age });
-    
     const goal = {
       id: `goal_${Date.now()}`,
       ...newGoal,
@@ -69,7 +68,6 @@ const PlayerAssignments = ({ user, team }) => {
       createdAt: new Date().toISOString(),
       status: 'active'
     };
-
     saveGoals([...personalGoals, goal]);
     setNewGoal({ description: '', timeframe: '4 weeks', daysPerWeek: 3, minutesPerDay: 45 });
     setShowGoalModal(false);
@@ -79,20 +77,33 @@ const PlayerAssignments = ({ user, team }) => {
     return type === 'drill' ? getDrill(itemId) : getWorkout(itemId);
   };
 
+  // Check if specific item in assignment is logged
   const isItemLogged = (assignmentId, itemId) => {
     return logs.some(l => l.assignmentId === assignmentId && l.itemId === itemId);
   };
 
-  const isGoalDayCompleted = (goalId, weekIndex, dayIndex) => {
-    return logs.some(l => l.assignmentId === `${goalId}_w${weekIndex}_d${dayIndex}`);
+  // Check if specific drill in a goal day is logged (per-drill logging)
+  const isGoalDrillLogged = (goalId, weekIndex, dayIndex, drillId) => {
+    const assignmentId = `${goalId}_w${weekIndex}_d${dayIndex}`;
+    return logs.some(l => l.assignmentId === assignmentId && l.itemId === drillId);
+  };
+
+  // Check if ALL drills for a day are completed
+  const isGoalDayCompleted = (goalId, weekIndex, dayIndex, drills) => {
+    if (!drills || drills.length === 0) return false;
+    return drills.every(drill => isGoalDrillLogged(goalId, weekIndex, dayIndex, drill.id));
   };
 
   const handleLog = () => {
     if (!loggingItem || !loggingContext) return;
 
-    const assignmentId = loggingContext.type === 'assignment' 
-      ? loggingContext.id 
-      : `${loggingContext.goalId}_w${loggingContext.weekIndex}_d${loggingContext.dayIndex}`;
+    let assignmentId;
+    if (loggingContext.type === 'assignment') {
+      assignmentId = loggingContext.id;
+    } else {
+      // Goal drill logging - include drill ID in assignment ID for per-drill tracking
+      assignmentId = `${loggingContext.goalId}_w${loggingContext.weekIndex}_d${loggingContext.dayIndex}`;
+    }
 
     createLog(user.id, {
       assignmentId,
@@ -114,7 +125,6 @@ const PlayerAssignments = ({ user, team }) => {
     setLoggingContext(null);
   };
 
-  // Check if ALL items in assignment are logged
   const isAssignmentCompleted = (assignment) => {
     if (!assignment.items || assignment.items.length === 0) return false;
     return assignment.items.every(itemId => isItemLogged(assignment.id, itemId));
@@ -127,6 +137,79 @@ const PlayerAssignments = ({ user, team }) => {
   });
 
   const activeGoals = personalGoals.filter(g => g.status === 'active');
+
+  // Render drill with expandable steps
+  const renderDrillItem = (drill, isLogged, onLog, showSteps = true) => {
+    const isExpanded = expandedDrill === drill.id;
+    const hasSteps = drill.steps && drill.steps.length > 0;
+
+    return (
+      <div key={drill.id} className={`rounded-xl overflow-hidden ${isLogged ? 'bg-green-500/10 border border-green-500/30' : 'bg-slate-700/50'}`}>
+        <div className="p-4">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <div className="flex items-center space-x-2">
+                {isLogged && <span className="text-green-400">✓</span>}
+                <h4 className="font-medium text-white">{drill.name}</h4>
+              </div>
+              <p className="text-sm text-slate-400 mt-1">{drill.description || drill.category}</p>
+              <p className="text-xs text-slate-500 mt-1">{drill.duration} min • {drill.category}</p>
+            </div>
+            <div className="flex items-center space-x-2">
+              {hasSteps && showSteps && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setExpandedDrill(isExpanded ? null : drill.id);
+                  }}
+                  className="px-3 py-1 bg-slate-600 text-slate-300 text-xs rounded-lg hover:bg-slate-500"
+                >
+                  {isExpanded ? 'Hide Steps' : 'Show Steps'}
+                </button>
+              )}
+              {!isLogged && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onLog();
+                  }}
+                  className="px-4 py-2 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-400"
+                >
+                  Log
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Expandable Steps Section */}
+        <AnimatePresence>
+          {isExpanded && hasSteps && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="border-t border-slate-600 overflow-hidden"
+            >
+              <div className="p-4 bg-slate-800/50">
+                <p className="text-sm font-medium text-slate-300 mb-3">📋 Instructions:</p>
+                <ol className="space-y-2">
+                  {drill.steps.map((step, idx) => (
+                    <li key={idx} className="flex items-start space-x-3 text-sm">
+                      <span className="flex-shrink-0 w-6 h-6 bg-slate-700 rounded-full flex items-center justify-center text-xs text-slate-400">
+                        {idx + 1}
+                      </span>
+                      <span className="text-slate-300">{step}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  };
 
   return (
     <div className="p-4 md:p-6 space-y-6" key={refreshKey}>
@@ -198,31 +281,13 @@ const PlayerAssignments = ({ user, team }) => {
                     <div className="border-t border-slate-700 p-4 space-y-3">
                       {items.map((item) => {
                         const isLogged = isItemLogged(assignment.id, item.id);
-                        return (
-                          <div key={item.id} className={`p-4 rounded-xl ${isLogged ? 'bg-green-500/10 border border-green-500/30' : 'bg-slate-700/50'}`}>
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center space-x-2">
-                                  {isLogged && <span className="text-green-400">✓</span>}
-                                  <h4 className="font-medium text-white">{item.name}</h4>
-                                </div>
-                                <p className="text-sm text-slate-400 mt-1">{item.description}</p>
-                                <p className="text-xs text-slate-500 mt-1">{item.duration} min • {item.category}</p>
-                              </div>
-                              {!isLogged && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setLoggingItem(item);
-                                    setLoggingContext({ type: 'assignment', id: assignment.id });
-                                  }}
-                                  className="px-4 py-2 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-400"
-                                >
-                                  Log
-                                </button>
-                              )}
-                            </div>
-                          </div>
+                        return renderDrillItem(
+                          item,
+                          isLogged,
+                          () => {
+                            setLoggingItem(item);
+                            setLoggingContext({ type: 'assignment', id: assignment.id });
+                          }
                         );
                       })}
                     </div>
@@ -253,10 +318,22 @@ const PlayerAssignments = ({ user, team }) => {
           ) : (
             activeGoals.map((goal) => {
               const isExpanded = selectedGoal?.id === goal.id;
-              const totalTrainingDays = goal.plan.weeklyPlans.reduce((sum, week) => 
-                sum + week.days.filter(d => d.isTrainingDay).length, 0);
-              const completedDays = goal.plan.weeklyPlans.reduce((sum, week, wIndex) => 
-                sum + week.days.filter((d, dIndex) => d.isTrainingDay && isGoalDayCompleted(goal.id, wIndex, dIndex)).length, 0);
+              
+              // Calculate completion based on individual drills, not days
+              let totalDrills = 0;
+              let completedDrills = 0;
+              goal.plan.weeklyPlans.forEach((week, wIndex) => {
+                week.days.forEach((day, dIndex) => {
+                  if (day.isTrainingDay && day.drills) {
+                    day.drills.forEach(drill => {
+                      totalDrills++;
+                      if (isGoalDrillLogged(goal.id, wIndex, dIndex, drill.id)) {
+                        completedDrills++;
+                      }
+                    });
+                  }
+                });
+              });
 
               return (
                 <div key={goal.id} className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
@@ -264,6 +341,7 @@ const PlayerAssignments = ({ user, team }) => {
                     onClick={() => {
                       setSelectedGoal(isExpanded ? null : goal);
                       setSelectedWeek(null);
+                      setExpandedDrill(null);
                     }}
                     className="w-full p-4 text-left"
                   >
@@ -279,35 +357,53 @@ const PlayerAssignments = ({ user, team }) => {
                       </span>
                     </div>
                     <div className="mt-3 h-2 bg-slate-700 rounded-full overflow-hidden">
-                      <div className="h-full bg-blue-500 transition-all" style={{ width: `${totalTrainingDays > 0 ? (completedDays / totalTrainingDays) * 100 : 0}%` }} />
+                      <div className="h-full bg-blue-500 transition-all" style={{ width: `${totalDrills > 0 ? (completedDrills / totalDrills) * 100 : 0}%` }} />
                     </div>
-                    <p className="text-xs text-slate-500 mt-2">{completedDays}/{totalTrainingDays} training days completed</p>
+                    <p className="text-xs text-slate-500 mt-2">{completedDrills}/{totalDrills} drills completed</p>
                   </button>
 
                   {isExpanded && (
                     <div className="border-t border-slate-700 p-4 space-y-3">
                       {goal.plan.weeklyPlans.map((week, weekIndex) => {
                         const weekTrainingDays = week.days.filter(d => d.isTrainingDay);
-                        const weekCompletedDays = weekTrainingDays.filter((d, dIndex) => 
-                          isGoalDayCompleted(goal.id, weekIndex, week.days.indexOf(d))).length;
+                        
+                        // Calculate week completion by drills
+                        let weekTotalDrills = 0;
+                        let weekCompletedDrills = 0;
+                        week.days.forEach((day, dIndex) => {
+                          if (day.isTrainingDay && day.drills) {
+                            day.drills.forEach(drill => {
+                              weekTotalDrills++;
+                              if (isGoalDrillLogged(goal.id, weekIndex, dIndex, drill.id)) {
+                                weekCompletedDrills++;
+                              }
+                            });
+                          }
+                        });
+                        
+                        const isWeekComplete = weekTotalDrills > 0 && weekCompletedDrills === weekTotalDrills;
                         const isWeekExpanded = selectedWeek === weekIndex;
 
                         return (
                           <div key={weekIndex} className="bg-slate-900/50 rounded-xl overflow-hidden">
                             <button
-                              onClick={() => setSelectedWeek(isWeekExpanded ? null : weekIndex)}
+                              onClick={() => {
+                                setSelectedWeek(isWeekExpanded ? null : weekIndex);
+                                setExpandedDrill(null);
+                              }}
                               className="w-full p-3 text-left flex items-center justify-between"
                             >
                               <div className="flex items-center space-x-3">
                                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                                  weekCompletedDays === weekTrainingDays.length && weekTrainingDays.length > 0
-                                    ? 'bg-green-500/20 text-green-400' : 'bg-slate-700 text-white'
+                                  isWeekComplete ? 'bg-green-500/20 text-green-400' : 'bg-slate-700 text-white'
                                 }`}>
-                                  {weekCompletedDays === weekTrainingDays.length && weekTrainingDays.length > 0 ? '✓' : week.week}
+                                  {isWeekComplete ? '✓' : week.week}
                                 </div>
                                 <div>
                                   <p className="font-medium text-white">Week {week.week}</p>
-                                  <p className="text-xs text-slate-400">{weekCompletedDays}/{weekTrainingDays.length} days completed</p>
+                                  <p className="text-xs text-slate-400">
+                                    {weekCompletedDrills}/{weekTotalDrills} drills completed
+                                  </p>
                                 </div>
                               </div>
                               <span className="text-slate-400">{isWeekExpanded ? '▲' : '▼'}</span>
@@ -324,42 +420,55 @@ const PlayerAssignments = ({ user, team }) => {
                                     );
                                   }
 
-                                  const isDayCompleted = isGoalDayCompleted(goal.id, weekIndex, dayIndex);
+                                  // Check individual drill completion
+                                  const dayDrills = day.drills || [];
+                                  const completedDayDrills = dayDrills.filter(drill => 
+                                    isGoalDrillLogged(goal.id, weekIndex, dayIndex, drill.id)
+                                  ).length;
+                                  const isDayFullyCompleted = dayDrills.length > 0 && completedDayDrills === dayDrills.length;
 
                                   return (
-                                    <div key={dayIndex} className={`p-3 rounded-lg ${isDayCompleted ? 'bg-green-500/10 border border-green-500/30' : 'bg-slate-800'}`}>
-                                      <div className="flex items-center justify-between mb-2">
+                                    <div key={dayIndex} className={`p-3 rounded-lg ${isDayFullyCompleted ? 'bg-green-500/10 border border-green-500/30' : 'bg-slate-800'}`}>
+                                      <div className="flex items-center justify-between mb-3">
                                         <div className="flex items-center space-x-2">
-                                          {isDayCompleted ? <span className="text-green-400">✓</span> : <span className="text-slate-500">○</span>}
-                                          <span className={`font-medium ${isDayCompleted ? 'text-green-400' : 'text-white'}`}>{day.dayName}</span>
+                                          {isDayFullyCompleted ? (
+                                            <span className="text-green-400">✓</span>
+                                          ) : (
+                                            <span className="text-slate-500">○</span>
+                                          )}
+                                          <span className={`font-medium ${isDayFullyCompleted ? 'text-green-400' : 'text-white'}`}>
+                                            {day.dayName}
+                                          </span>
                                           <span className="text-xs text-slate-500">• {day.focus}</span>
                                         </div>
+                                        <span className="text-xs text-slate-400">
+                                          {completedDayDrills}/{dayDrills.length} drills
+                                        </span>
                                       </div>
                                       
-                                      {/* Show drills for this day */}
-                                      <div className="space-y-2 mt-2">
-                                        {day.drills.map((drill, drillIndex) => (
-                                          <div key={drillIndex} className="flex items-center justify-between p-2 bg-slate-700/50 rounded-lg">
-                                            <div>
-                                              <p className="text-sm text-white">{drill.name}</p>
-                                              <p className="text-xs text-slate-400">{drill.duration} min • {drill.category}</p>
-                                            </div>
-                                            {!isDayCompleted && (
-                                              <button
-                                                onClick={() => {
-                                                  setLoggingItem(drill);
-                                                  setLoggingContext({ type: 'goal', goalId: goal.id, weekIndex, dayIndex });
-                                                }}
-                                                className="px-3 py-1 bg-blue-500 text-white text-xs rounded-lg hover:bg-blue-400"
-                                              >
-                                                Log
-                                              </button>
-                                            )}
-                                          </div>
-                                        ))}
+                                      {/* Individual drills with per-drill logging */}
+                                      <div className="space-y-2">
+                                        {dayDrills.map((drill) => {
+                                          const isDrillLogged = isGoalDrillLogged(goal.id, weekIndex, dayIndex, drill.id);
+                                          
+                                          return renderDrillItem(
+                                            drill,
+                                            isDrillLogged,
+                                            () => {
+                                              setLoggingItem(drill);
+                                              setLoggingContext({ 
+                                                type: 'goal', 
+                                                goalId: goal.id, 
+                                                weekIndex, 
+                                                dayIndex 
+                                              });
+                                            },
+                                            true
+                                          );
+                                        })}
                                       </div>
 
-                                      {day.drills.length === 0 && (
+                                      {dayDrills.length === 0 && (
                                         <p className="text-xs text-slate-500 mt-2">No drills assigned for this day</p>
                                       )}
                                     </div>
@@ -484,7 +593,7 @@ const PlayerAssignments = ({ user, team }) => {
         </div>
       )}
 
-      {/* Log Modal - Full version with all fields */}
+      {/* Log Modal */}
       {loggingItem && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50" onClick={() => { setLoggingItem(null); setLoggingContext(null); }}>
           <div className="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-md p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
