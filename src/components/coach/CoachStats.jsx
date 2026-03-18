@@ -1,23 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   getTeamPlayers, 
   getTeamAssignments,
   getPlayerLogs,
   getDrill,
-  getWorkout
+  getWorkout,
+  getAllDrills
 } from '../../data/database';
 
-const CoachStats = ({ user, team }) => {
+const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
   const [activeTab, setActiveTab] = useState('team');
-  const [selectedPosition, setSelectedPosition] = useState('PG');
+  const [selectedPosition, setSelectedPosition] = useState('Point Guard');
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [expandedAssignment, setExpandedAssignment] = useState(null);
   const [expandedDrill, setExpandedDrill] = useState(null);
+  const [showAIRecommendations, setShowAIRecommendations] = useState(false);
 
-  const players = getTeamPlayers(team.id);
-  const allAssignments = getTeamAssignments(team.id);
-  const positions = ['PG', 'SG', 'SF', 'PF', 'C'];
+  const players = team ? getTeamPlayers(team.id) : [];
+  const allAssignments = team ? getTeamAssignments(team.id) : [];
+  const positions = ['Point Guard', 'Shooting Guard', 'Small Forward', 'Power Forward', 'Center'];
+
+  // Handle initial assignment from dashboard navigation
+  useEffect(() => {
+    if (initialAssignment) {
+      setExpandedAssignment(initialAssignment.id);
+    }
+  }, [initialAssignment]);
 
   // Get players by position
   const getPlayersByPosition = (position) => {
@@ -26,56 +35,49 @@ const CoachStats = ({ user, team }) => {
 
   // Check if an assignment was assigned to a specific position
   const isAssignedToPosition = (assignment, position) => {
-    if (assignment.assignedTo === 'team') return false; // Team assignments handled separately
+    if (assignment.assignedTo === 'team') return false;
     if (!Array.isArray(assignment.assignedTo)) return false;
     
     const positionPlayers = getPlayersByPosition(position);
     const positionPlayerIds = positionPlayers.map(p => p.id);
     
-    // Check if ALL players in assignment are from this position (position-specific assignment)
-    // OR if SOME players from this position are in the assignment
     const assignedToThisPosition = assignment.assignedTo.some(id => positionPlayerIds.includes(id));
     return assignedToThisPosition;
   };
 
   // Check if an assignment was assigned to a specific player
   const isAssignedToPlayer = (assignment, playerId) => {
-    if (assignment.assignedTo === 'team') return true; // Team assignments include everyone
+    if (assignment.assignedTo === 'team') return true;
     if (Array.isArray(assignment.assignedTo)) {
       return assignment.assignedTo.includes(playerId);
     }
     return false;
   };
 
-  // Filter assignments based on view - THIS IS THE KEY LOGIC
+  // Filter assignments based on view
   const getFilteredAssignments = () => {
     if (activeTab === 'team') {
-      // ONLY team-wide assignments (where coach selected "Assign to Team")
       return allAssignments.filter(a => a.assignedTo === 'team');
     } else if (activeTab === 'position') {
-      // Team-wide assignments + assignments specifically for this position
       return allAssignments.filter(a => {
-        // Include team-wide assignments
         if (a.assignedTo === 'team') return true;
-        // Include position-specific assignments for selected position
         if (isAssignedToPosition(a, selectedPosition)) return true;
         return false;
       });
     } else if (activeTab === 'individual' && selectedPlayer) {
-      // All assignments this player was assigned to
       return allAssignments.filter(a => isAssignedToPlayer(a, selectedPlayer.id));
     }
     return [];
   };
 
   // Get relevant players for stats calculation
-  const getRelevantPlayers = (assignment = null) => {
+  const getRelevantPlayers = () => {
     if (activeTab === 'team') {
-      return players; // All players for team stats
+      return players;
     } else if (activeTab === 'position') {
-      return getPlayersByPosition(selectedPosition); // Only players in this position
+      return getPlayersByPosition(selectedPosition);
     } else if (activeTab === 'individual' && selectedPlayer) {
-      return [selectedPlayer]; // Just this player
+      return [selectedPlayer];
     }
     return [];
   };
@@ -148,7 +150,6 @@ const CoachStats = ({ user, team }) => {
     let totalMakes = 0;
     let totalAttempts = 0;
 
-    // Only count logs from filtered assignments
     const filteredAssignmentIds = filteredAssignments.map(a => a.id);
 
     relevantPlayers.forEach(player => {
@@ -175,21 +176,211 @@ const CoachStats = ({ user, team }) => {
     };
   };
 
+  // Generate AI recommendations based on team stats
+  const generateAIRecommendations = () => {
+    const allDrills = getAllDrills();
+    const recommendations = [];
+    
+    // Analyze team shooting
+    const overallStats = getOverallStats();
+    const shootingPct = overallStats.shooting.percentage;
+    
+    if (shootingPct !== null && shootingPct < 50) {
+      recommendations.push({
+        type: 'drill',
+        priority: 'high',
+        title: 'Focus on Form Shooting',
+        description: `Team shooting is at ${shootingPct}%. Assign form shooting drills to improve fundamentals.`,
+        suggestedDrills: allDrills.filter(d => d.category === 'shooting').slice(0, 2)
+      });
+    }
+
+    // Check for players with low completion
+    const lowCompletionPlayers = players.filter(p => {
+      const logs = getPlayerLogs(p.id);
+      return logs.length < 3;
+    });
+
+    if (lowCompletionPlayers.length > 0) {
+      recommendations.push({
+        type: 'engagement',
+        priority: 'medium',
+        title: 'Low Engagement Alert',
+        description: `${lowCompletionPlayers.length} player${lowCompletionPlayers.length > 1 ? 's have' : ' has'} completed fewer than 3 drills.`,
+        players: lowCompletionPlayers
+      });
+    }
+
+    // Position-specific recommendations
+    positions.forEach(pos => {
+      const posPlayers = getPlayersByPosition(pos);
+      if (posPlayers.length > 0) {
+        let posMakes = 0, posAttempts = 0;
+        posPlayers.forEach(p => {
+          const logs = getPlayerLogs(p.id);
+          logs.forEach(l => {
+            if (l.makes !== undefined) posMakes += l.makes;
+            if (l.attempts !== undefined) posAttempts += l.attempts;
+          });
+        });
+        const posPct = posAttempts > 0 ? Math.round((posMakes / posAttempts) * 100) : null;
+        
+        if (posPct !== null && posPct < 45) {
+          const categoryMap = {
+            'Point Guard': 'ball-handling',
+            'Shooting Guard': 'shooting',
+            'Small Forward': 'shooting',
+            'Power Forward': 'post',
+            'Center': 'post'
+          };
+          const category = categoryMap[pos] || 'shooting';
+          recommendations.push({
+            type: 'position',
+            priority: 'medium',
+            title: `${pos} Development`,
+            description: `${pos}s are shooting ${posPct}%. Consider targeted ${category} drills.`,
+            position: pos,
+            suggestedDrills: allDrills.filter(d => d.category === category).slice(0, 2)
+          });
+        }
+      }
+    });
+
+    // Workout balance check
+    const hasWorkouts = allAssignments.some(a => a.type === 'workout');
+    if (!hasWorkouts && allAssignments.length > 2) {
+      recommendations.push({
+        type: 'balance',
+        priority: 'low',
+        title: 'Add Conditioning',
+        description: 'All assignments are skill drills. Consider adding workouts for physical development.',
+        suggestedDrills: []
+      });
+    }
+
+    return recommendations.length > 0 ? recommendations : [{
+      type: 'success',
+      priority: 'low',
+      title: 'Team on Track',
+      description: 'No specific recommendations at this time. Keep up the good work!',
+      suggestedDrills: []
+    }];
+  };
+
   const overallStats = getOverallStats();
   const filteredAssignments = getFilteredAssignments();
+  const aiRecommendations = generateAIRecommendations();
 
   // Get item details (drill or workout)
   const getItemDetails = (itemId, type) => {
     return type === 'drill' ? getDrill(itemId) : getWorkout(itemId);
   };
 
+  if (!team) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[50vh]">
+        <div className="text-center">
+          <span className="text-4xl">📊</span>
+          <p className="text-slate-400 mt-4">Create a team to view analytics</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 md:p-6 space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-white">Analytics</h1>
-        <p className="text-slate-400">Track performance across your team</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Analytics</h1>
+          <p className="text-slate-400">Track performance across your team</p>
+        </div>
+        <button
+          onClick={() => setShowAIRecommendations(!showAIRecommendations)}
+          className={`px-4 py-2 rounded-xl font-medium flex items-center space-x-2 transition-colors ${
+            showAIRecommendations 
+              ? 'bg-purple-500 text-white' 
+              : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'
+          }`}
+        >
+          <span>🤖</span>
+          <span>AI Insights</span>
+        </button>
       </div>
+
+      {/* AI Recommendations Section */}
+      <AnimatePresence>
+        {showAIRecommendations && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="bg-gradient-to-br from-purple-500/10 to-blue-500/10 rounded-xl border border-purple-500/30 p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-white flex items-center space-x-2">
+                  <span>🤖</span>
+                  <span>AI Recommendations</span>
+                </h2>
+                <span className="text-xs text-slate-400">Based on team performance data</span>
+              </div>
+              
+              <div className="space-y-3">
+                {aiRecommendations.map((rec, idx) => (
+                  <div 
+                    key={idx}
+                    className={`p-4 rounded-lg border ${
+                      rec.priority === 'high' ? 'bg-red-500/10 border-red-500/30' :
+                      rec.priority === 'medium' ? 'bg-yellow-500/10 border-yellow-500/30' :
+                      'bg-slate-800/50 border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            rec.priority === 'high' ? 'bg-red-500/20 text-red-400' :
+                            rec.priority === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                            'bg-green-500/20 text-green-400'
+                          }`}>
+                            {rec.priority === 'high' ? '⚠️ High' : rec.priority === 'medium' ? '📌 Medium' : '✅ Info'}
+                          </span>
+                          <span className="text-xs text-slate-500 capitalize">{rec.type}</span>
+                        </div>
+                        <h3 className="font-medium text-white mt-2">{rec.title}</h3>
+                        <p className="text-sm text-slate-400 mt-1">{rec.description}</p>
+                      </div>
+                    </div>
+                    
+                    {rec.suggestedDrills && rec.suggestedDrills.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <span className="text-xs text-slate-500">Suggested:</span>
+                        {rec.suggestedDrills.map(drill => (
+                          <span key={drill.id} className="text-xs px-2 py-1 bg-slate-700 text-slate-300 rounded">
+                            {drill.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {rec.players && rec.players.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <span className="text-xs text-slate-500">Players:</span>
+                        {rec.players.map(player => (
+                          <span key={player.id} className="text-xs px-2 py-1 bg-slate-700 text-slate-300 rounded">
+                            {player.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Tabs */}
       <div className="flex flex-wrap gap-2">
@@ -347,7 +538,6 @@ const CoachStats = ({ user, team }) => {
                 const isExpanded = expandedAssignment === assignment.id;
                 const items = assignment.items.map(id => getItemDetails(id, assignment.type)).filter(Boolean);
                 
-                // Calculate assignment completion for relevant players
                 const relevantPlayers = getRelevantPlayers();
                 let completedCount = 0;
                 relevantPlayers.forEach(player => {
@@ -355,7 +545,6 @@ const CoachStats = ({ user, team }) => {
                   if (logs.length > 0) completedCount++;
                 });
 
-                // Determine assignment type label
                 const getAssignmentTypeLabel = () => {
                   if (assignment.assignedTo === 'team') return { text: 'Team', color: 'bg-blue-500/20 text-blue-400' };
                   return { text: 'Targeted', color: 'bg-purple-500/20 text-purple-400' };
