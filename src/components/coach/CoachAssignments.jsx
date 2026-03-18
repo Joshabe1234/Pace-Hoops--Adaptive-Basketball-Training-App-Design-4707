@@ -26,10 +26,10 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
 
-  const assignments = getTeamAssignments(team.id);
+  const assignments = team ? getTeamAssignments(team.id) : [];
   const allDrills = getAllDrills();
   const allWorkouts = getAllWorkouts();
-  const players = getTeamPlayers(team.id);
+  const players = team ? getTeamPlayers(team.id) : [];
 
   const itemsToShow = newAssignment.type === 'drill' ? allDrills : allWorkouts;
   const filteredItems = itemsToShow.filter(item => {
@@ -39,7 +39,7 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
   });
 
   const categories = [...new Set(itemsToShow.map(i => i.category))];
-  const positions = ['PG', 'SG', 'SF', 'PF', 'C'];
+  const positions = ['Point Guard', 'Shooting Guard', 'Small Forward', 'Power Forward', 'Center'];
 
   const getAssignedPlayers = () => {
     if (newAssignment.assignmentMode === 'team') return 'team';
@@ -123,13 +123,24 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
     return 'Unknown';
   };
 
+  if (!team) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[50vh]">
+        <div className="text-center">
+          <span className="text-4xl">📋</span>
+          <p className="text-slate-400 mt-4">Create a team to manage assignments</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Assignments</h1>
-          <p className="text-slate-400">Assign drills and workouts to your team or specific players</p>
+          <p className="text-slate-400">Assign drills and workouts to your team</p>
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
@@ -140,8 +151,8 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
         </button>
       </div>
 
-      {/* Quick assign buttons */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {/* Quick assign buttons - AI Suggested removed */}
+      <div className="grid grid-cols-3 gap-3">
         <button
           onClick={() => {
             setNewAssignment(prev => ({ ...prev, assignmentMode: 'team' }));
@@ -174,14 +185,6 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
           <span className="text-2xl">👤</span>
           <p className="font-medium text-white mt-2">Individual</p>
           <p className="text-xs text-slate-400">Specific players</p>
-        </button>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="p-4 bg-slate-800 border border-slate-700 rounded-xl hover:border-orange-500 transition-colors text-left"
-        >
-          <span className="text-2xl">🤖</span>
-          <p className="font-medium text-white mt-2">AI Suggested</p>
-          <p className="text-xs text-slate-400">Based on stats</p>
         </button>
       </div>
 
