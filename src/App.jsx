@@ -28,6 +28,9 @@ function App() {
   const [user, setUser] = useState(null);
   const [team, setTeam] = useState(null);
   const [currentView, setCurrentView] = useState('home');
+  
+  // Navigation state for passing data between views
+  const [navState, setNavState] = useState({});
 
   useEffect(() => {
     initializeDatabase();
@@ -45,6 +48,7 @@ function App() {
     setUser(null);
     setTeam(null);
     setCurrentView('home');
+    setNavState({});
   };
 
   const handleTeamJoined = (newTeam) => {
@@ -78,6 +82,12 @@ function App() {
     }
   };
 
+  // Navigation handler that can pass state between views
+  const handleNavigate = (view, state = {}) => {
+    setNavState(state);
+    setCurrentView(view);
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
@@ -104,24 +114,54 @@ function App() {
     if (isCoach) {
       switch (currentView) {
         case 'home':
-          return <CoachDashboard user={user} team={team} onTeamCreated={handleTeamCreated} refreshTeam={refreshTeam} />;
+          return (
+            <CoachDashboard 
+              user={user} 
+              team={team} 
+              onTeamCreated={handleTeamCreated} 
+              refreshTeam={refreshTeam}
+              onNavigate={handleNavigate}
+            />
+          );
         case 'roster':
           return <CoachRoster user={user} team={team} refreshTeam={refreshTeam} />;
         case 'assignments':
           return <CoachAssignments user={user} team={team} refreshTeam={refreshTeam} />;
         case 'stats':
-          return <CoachStats user={user} team={team} />;
+          return (
+            <CoachStats 
+              user={user} 
+              team={team} 
+              selectedAssignment={navState.selectedAssignment}
+            />
+          );
         case 'schedule':
           return <CoachSchedule user={user} team={team} />;
         case 'chat':
           return <CoachChat user={user} team={team} />;
         default:
-          return <CoachDashboard user={user} team={team} onTeamCreated={handleTeamCreated} refreshTeam={refreshTeam} />;
+          return (
+            <CoachDashboard 
+              user={user} 
+              team={team} 
+              onTeamCreated={handleTeamCreated} 
+              refreshTeam={refreshTeam}
+              onNavigate={handleNavigate}
+            />
+          );
       }
     } else {
       switch (currentView) {
         case 'home':
-          return <PlayerDashboard user={user} team={team} onTeamJoined={handleTeamJoined} refreshUser={refreshUser} setCurrentView={setCurrentView} />;
+          return (
+            <PlayerDashboard 
+              user={user} 
+              team={team} 
+              onTeamJoined={handleTeamJoined} 
+              refreshUser={refreshUser} 
+              setCurrentView={setCurrentView}
+            />
+          );
         case 'training':
           return <PlayerAssignments user={user} team={team} />;
         case 'stats':
@@ -131,7 +171,15 @@ function App() {
         case 'chat':
           return <PlayerChat user={user} team={team} />;
         default:
-          return <PlayerDashboard user={user} team={team} onTeamJoined={handleTeamJoined} refreshUser={refreshUser} setCurrentView={setCurrentView} />;
+          return (
+            <PlayerDashboard 
+              user={user} 
+              team={team} 
+              onTeamJoined={handleTeamJoined} 
+              refreshUser={refreshUser} 
+              setCurrentView={setCurrentView}
+            />
+          );
       }
     }
   };
@@ -142,7 +190,10 @@ function App() {
         user={user}
         team={team}
         currentView={currentView}
-        setCurrentView={setCurrentView}
+        setCurrentView={(view) => {
+          setNavState({}); // Clear nav state when using regular navigation
+          setCurrentView(view);
+        }}
         onLogout={handleLogout}
         isCoach={isCoach}
       />
