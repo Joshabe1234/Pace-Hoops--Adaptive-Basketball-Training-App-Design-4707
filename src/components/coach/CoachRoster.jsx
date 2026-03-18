@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getTeamPlayers, removePlayerFromTeam, getPlayerStats } from '../../data/database';
+import { getTeamPlayers, removePlayerFromTeam, getPlayerStats, updatePlayerPosition } from '../../data/database';
+
+const POSITIONS = ['Point Guard', 'Shooting Guard', 'Small Forward', 'Power Forward', 'Center'];
 
 const CoachRoster = ({ user, team, refreshTeam }) => {
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(null);
+  const [editingPosition, setEditingPosition] = useState(false);
+  const [tempPosition, setTempPosition] = useState('');
 
-  const players = getTeamPlayers(team.id);
+  const players = team ? getTeamPlayers(team.id) : [];
 
   const handleRemovePlayer = (playerId) => {
     removePlayerFromTeam(team.id, playerId);
@@ -15,8 +19,39 @@ const CoachRoster = ({ user, team, refreshTeam }) => {
     setSelectedPlayer(null);
   };
 
+  const handleEditPosition = () => {
+    setTempPosition(selectedPlayer?.position || '');
+    setEditingPosition(true);
+  };
+
+  const handleSavePosition = () => {
+    if (selectedPlayer) {
+      updatePlayerPosition(selectedPlayer.id, tempPosition);
+      // Update selected player in state
+      setSelectedPlayer({ ...selectedPlayer, position: tempPosition });
+      setEditingPosition(false);
+      refreshTeam();
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingPosition(false);
+    setTempPosition('');
+  };
+
+  if (!team) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[50vh]">
+        <div className="text-center">
+          <span className="text-4xl">👥</span>
+          <p className="text-slate-400 mt-4">Create a team to manage your roster</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -98,7 +133,10 @@ const CoachRoster = ({ user, team, refreshTeam }) => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50"
-            onClick={() => setSelectedPlayer(null)}
+            onClick={() => {
+              setSelectedPlayer(null);
+              setEditingPosition(false);
+            }}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
@@ -115,12 +153,56 @@ const CoachRoster = ({ user, team, refreshTeam }) => {
                       {selectedPlayer.jerseyNumber || selectedPlayer.name?.charAt(0)}
                     </span>
                   </div>
-                  <div>
+                  <div className="flex-1">
                     <h2 className="text-2xl font-bold text-white">{selectedPlayer.name}</h2>
-                    <p className="text-white/80">
-                      {selectedPlayer.position || 'No position'} 
-                      {selectedPlayer.age && ` • ${selectedPlayer.age} years old`}
-                    </p>
+                    
+                    {/* Position - Editable */}
+                    {editingPosition ? (
+                      <div className="mt-2 flex items-center space-x-2">
+                        <select
+                          value={tempPosition}
+                          onChange={(e) => setTempPosition(e.target.value)}
+                          className="p-2 bg-white/20 border border-white/30 rounded-lg text-white text-sm"
+                        >
+                          <option value="" className="text-slate-900">No position</option>
+                          {POSITIONS.map((pos) => (
+                            <option key={pos} value={pos} className="text-slate-900">{pos}</option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={handleSavePosition}
+                          className="p-2 bg-white/20 rounded-lg hover:bg-white/30"
+                        >
+                          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={handleCancelEdit}
+                          className="p-2 bg-white/20 rounded-lg hover:bg-white/30"
+                        >
+                          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-2">
+                        <p className="text-white/80">
+                          {selectedPlayer.position || 'No position'} 
+                          {selectedPlayer.age && ` • ${selectedPlayer.age} years old`}
+                        </p>
+                        <button
+                          onClick={handleEditPosition}
+                          className="p-1 hover:bg-white/20 rounded"
+                          title="Edit position"
+                        >
+                          <svg className="w-4 h-4 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -158,7 +240,10 @@ const CoachRoster = ({ user, team, refreshTeam }) => {
                 {/* Actions */}
                 <div className="space-y-3">
                   <button
-                    onClick={() => setSelectedPlayer(null)}
+                    onClick={() => {
+                      setSelectedPlayer(null);
+                      setEditingPosition(false);
+                    }}
                     className="w-full p-3 bg-slate-700 text-white rounded-xl font-medium hover:bg-slate-600 transition-colors"
                   >
                     Close
