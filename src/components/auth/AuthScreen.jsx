@@ -31,6 +31,9 @@ const AuthScreen = ({ onLogin }) => {
     setError('');
   };
 
+  // Check if team code is entered
+  const hasTeamCode = formData.joinCode.trim().length > 0;
+
   const handleCoachSignup = async () => {
     setIsLoading(true);
     setError('');
@@ -46,13 +49,11 @@ const AuthScreen = ({ onLogin }) => {
         throw new Error('Please enter a team name');
       }
 
-      // Check if email already exists
       const existing = getUserByEmail(email);
       if (existing) {
         throw new Error('Email already registered. Please log in instead.');
       }
 
-      // Create coach
       const coach = createUser({
         email: email,
         name: name,
@@ -60,14 +61,10 @@ const AuthScreen = ({ onLogin }) => {
         organization: formData.organization.trim()
       });
 
-      // Create team
       const team = createTeam(coach.id, {
         name: formData.teamName.trim(),
         level: formData.teamLevel
       });
-
-      console.log('Created coach:', coach);
-      console.log('Created team with code:', team.joinCode);
 
       onLogin(coach, team);
     } catch (err) {
@@ -89,27 +86,41 @@ const AuthScreen = ({ onLogin }) => {
         throw new Error('Please fill in all required fields');
       }
 
-      // Check if email already exists
+      // VALIDATION: If team code entered, require age, jersey number, and position
+      const joinCode = formData.joinCode.trim().toUpperCase();
+      
+      if (joinCode && joinCode.length > 0) {
+        // With team code: require age, jersey #, position
+        if (!formData.age) {
+          throw new Error('Age is required when joining a team');
+        }
+        if (!formData.jerseyNumber) {
+          throw new Error('Jersey number is required when joining a team');
+        }
+        if (!formData.position) {
+          throw new Error('Position is required when joining a team');
+        }
+      } else {
+        // Without team code: only age is required
+        if (!formData.age) {
+          throw new Error('Age is required');
+        }
+      }
+
       const existing = getUserByEmail(email);
       if (existing) {
         throw new Error('Email already registered. Please log in instead.');
       }
 
-      // Team code is OPTIONAL - check if provided
+      // Team code validation
       let team = null;
-      const joinCode = formData.joinCode.trim().toUpperCase();
-      
       if (joinCode && joinCode.length > 0) {
-        console.log('Looking for team with code:', joinCode);
         team = getTeamByJoinCode(joinCode);
-        
         if (!team) {
           throw new Error('Invalid team code. Please check with your coach, or leave the code blank to join a team later.');
         }
-        console.log('Found team:', team.name);
       }
 
-      // Create player
       const player = createUser({
         email: email,
         name: name,
@@ -120,12 +131,9 @@ const AuthScreen = ({ onLogin }) => {
         jerseyNumber: formData.jerseyNumber
       });
 
-      // Add player to team if team was found
       if (team) {
         addPlayerToTeam(team.id, player.id);
       }
-
-      console.log('Created player:', player);
 
       onLogin(player, team);
     } catch (err) {
@@ -146,15 +154,11 @@ const AuthScreen = ({ onLogin }) => {
         throw new Error('Please enter your email');
       }
 
-      console.log('Looking for user with email:', email);
-      
       const user = getUserByEmail(email);
       
       if (!user) {
         throw new Error('No account found with this email. Please check your email or create a new account.');
       }
-
-      console.log('Found user:', user);
 
       let team = null;
       if (user.role === 'coach' && user.teamIds?.length > 0) {
@@ -359,8 +363,12 @@ const AuthScreen = ({ onLogin }) => {
           />
         </div>
 
-        {/* Team Code - Optional */}
-        <div className="p-3 bg-slate-800/50 border border-slate-700 rounded-xl">
+        {/* Team Code - Changes validation requirements */}
+        <div className={`p-3 rounded-xl border transition-colors ${
+          hasTeamCode 
+            ? 'bg-blue-500/10 border-blue-500/50' 
+            : 'bg-slate-800/50 border-slate-700'
+        }`}>
           <label className="block text-sm font-medium text-slate-300 mb-1">
             Team Code <span className="text-slate-500">(optional)</span>
           </label>
@@ -373,37 +381,56 @@ const AuthScreen = ({ onLogin }) => {
             className="w-full p-3 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-xl tracking-widest font-mono"
           />
           <p className="text-slate-500 text-xs mt-2">
-            Got a code from your coach? Enter it here. You can also join later.
+            {hasTeamCode 
+              ? '✓ Team code entered - Age, jersey #, and position required below'
+              : 'Got a code from your coach? Enter it here. You can also join later.'}
           </p>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
+        {/* Player Info - Conditionally required based on team code */}
+        <div className={`grid grid-cols-3 gap-3 p-3 rounded-xl border transition-colors ${
+          hasTeamCode 
+            ? 'bg-blue-500/10 border-blue-500/50' 
+            : 'bg-transparent border-transparent'
+        }`}>
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Age</label>
+            <label className="block text-sm font-medium text-slate-300 mb-1">
+              Age {hasTeamCode ? '*' : ''}
+            </label>
             <input
               type="number"
               value={formData.age}
               onChange={(e) => handleInputChange('age', e.target.value)}
               placeholder="16"
-              className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className={`w-full p-3 bg-slate-800 border rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                hasTeamCode ? 'border-blue-500/50' : 'border-slate-700'
+              }`}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Jersey #</label>
+            <label className="block text-sm font-medium text-slate-300 mb-1">
+              Jersey # {hasTeamCode ? '*' : ''}
+            </label>
             <input
               type="text"
               value={formData.jerseyNumber}
               onChange={(e) => handleInputChange('jerseyNumber', e.target.value)}
               placeholder="23"
-              className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className={`w-full p-3 bg-slate-800 border rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                hasTeamCode ? 'border-blue-500/50' : 'border-slate-700'
+              }`}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Position</label>
+            <label className="block text-sm font-medium text-slate-300 mb-1">
+              Position {hasTeamCode ? '*' : ''}
+            </label>
             <select
               value={formData.position}
               onChange={(e) => handleInputChange('position', e.target.value)}
-              className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className={`w-full p-3 bg-slate-800 border rounded-xl text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                hasTeamCode ? 'border-blue-500/50' : 'border-slate-700'
+              }`}
             >
               <option value="">--</option>
               <option value="PG">PG</option>
@@ -414,6 +441,12 @@ const AuthScreen = ({ onLogin }) => {
             </select>
           </div>
         </div>
+
+        {hasTeamCode && (
+          <p className="text-xs text-blue-400 text-center">
+            * Required fields when joining a team
+          </p>
+        )}
 
         {error && (
           <div className="p-3 bg-red-500/20 border border-red-500/50 rounded-xl text-red-400 text-sm">
