@@ -7,7 +7,8 @@ import {
   getAllTeamAssignments,
   getTeamStats,
   getTeamMessages,
-  getUnreadDMCount
+  getUnreadDMCount,
+  getTeamInjuries
 } from '../../data/database';
 
 const CoachDashboard = ({ user, team, onNavigate }) => {
@@ -33,6 +34,15 @@ const CoachDashboard = ({ user, team, onNavigate }) => {
   const allAssignments = team ? getAllTeamAssignments(team.id) : [];
   const messages = team ? getTeamMessages(team.id) : [];
   const dmUnread = getUnreadDMCount(user.id);
+  const injuries = team ? getTeamInjuries(team.id) : [];
+
+  // Get recent injuries (last 7 days)
+  const recentInjuries = injuries.filter(i => {
+    const injuryDate = new Date(i.date);
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    return injuryDate >= weekAgo;
+  });
 
   // Get past assignments (completed or past due, within last 7 days)
   const oneWeekAgo = new Date();
@@ -296,23 +306,41 @@ const CoachDashboard = ({ user, team, onNavigate }) => {
 
         {/* Player Health Alerts */}
         <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-          <div className="p-4 border-b border-slate-700">
+          <button
+            onClick={() => onNavigate && onNavigate('health')}
+            className="w-full p-4 border-b border-slate-700 flex items-center justify-between hover:bg-slate-700/30 transition-colors"
+          >
             <h3 className="font-semibold text-white">Player Alerts</h3>
-          </div>
+            <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
           <div className="p-4">
-            {stats?.teamTotals?.soreness?.playersAtRisk?.length > 0 ? (
+            {recentInjuries.length > 0 ? (
               <div className="space-y-3">
-                {stats.teamTotals.soreness.playersAtRisk.map((item, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <span className="text-xl">⚠️</span>
-                      <div>
-                        <p className="font-medium text-white">{item.player?.name || 'Unknown'}</p>
-                        <p className="text-xs text-orange-400">Reported soreness</p>
+                {recentInjuries.slice(0, 3).map((injury, idx) => (
+                  <div key={idx} className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                    <div className="flex items-start space-x-3">
+                      <span className="text-xl">🚨</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-white">{injury.player?.name || 'Unknown'}</p>
+                        <p className="text-xs text-red-400 mt-0.5">
+                          Injured during: {injury.drillName}
+                        </p>
+                        {injury.injuryDescription && (
+                          <p className="text-xs text-slate-400 mt-1 truncate">
+                            "{injury.injuryDescription}"
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
                 ))}
+                {recentInjuries.length > 3 && (
+                  <p className="text-xs text-slate-500 text-center">
+                    +{recentInjuries.length - 3} more injury reports
+                  </p>
+                )}
               </div>
             ) : (
               <div className="text-center py-4">
