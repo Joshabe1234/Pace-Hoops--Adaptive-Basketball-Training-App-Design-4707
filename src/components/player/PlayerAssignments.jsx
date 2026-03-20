@@ -39,6 +39,8 @@ const PlayerAssignments = ({ user, team }) => {
     weight: '',
     difficulty: 3,
     soreness: 'none',
+    injured: false,
+    injuryDescription: '',
     notes: ''
   });
 
@@ -116,11 +118,13 @@ const PlayerAssignments = ({ user, team }) => {
       weight: logData.weight ? parseFloat(logData.weight) : undefined,
       difficulty: logData.difficulty,
       soreness: logData.soreness,
+      injured: logData.injured,
+      injuryDescription: logData.injured ? logData.injuryDescription : null,
       notes: logData.notes,
       completed: true
     });
 
-    setLogData({ makes: '', attempts: '', sets: '', reps: '', weight: '', difficulty: 3, soreness: 'none', notes: '' });
+    setLogData({ makes: '', attempts: '', sets: '', reps: '', weight: '', difficulty: 3, soreness: 'none', injured: false, injuryDescription: '', notes: '' });
     setLoggingItem(null);
     setLoggingContext(null);
   };
@@ -707,6 +711,49 @@ const PlayerAssignments = ({ user, team }) => {
                   ))}
                 </div>
               </div>
+
+              {/* Injury Question */}
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Did you get injured?</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setLogData(p => ({ ...p, injured: false, injuryDescription: '' }))}
+                    className={`p-3 rounded-lg text-sm font-medium transition-colors ${
+                      !logData.injured
+                        ? 'bg-green-500 text-white'
+                        : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                    }`}
+                  >
+                    No
+                  </button>
+                  <button
+                    onClick={() => setLogData(p => ({ ...p, injured: true }))}
+                    className={`p-3 rounded-lg text-sm font-medium transition-colors ${
+                      logData.injured
+                        ? 'bg-red-500 text-white'
+                        : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                    }`}
+                  >
+                    Yes
+                  </button>
+                </div>
+              </div>
+
+              {/* Injury Description - Only shown if injured */}
+              {logData.injured && (
+                <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
+                  <label className="block text-sm font-medium text-red-400 mb-2">
+                    🚨 Describe the injury
+                  </label>
+                  <textarea
+                    value={logData.injuryDescription}
+                    onChange={(e) => setLogData(p => ({ ...p, injuryDescription: e.target.value }))}
+                    placeholder="What happened? Where does it hurt? How severe is it?"
+                    rows={3}
+                    className="w-full p-3 bg-slate-700 border border-red-500/50 rounded-xl text-white placeholder-slate-500 resize-none"
+                  />
+                </div>
+              )}
 
               {/* Notes */}
               <div>
