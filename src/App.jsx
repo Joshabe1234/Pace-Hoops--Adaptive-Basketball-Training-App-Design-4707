@@ -15,6 +15,7 @@ import CoachAssignments from './components/coach/CoachAssignments';
 import CoachStats from './components/coach/CoachStats';
 import CoachSchedule from './components/coach/CoachSchedule';
 import CoachChat from './components/coach/CoachChat';
+import CoachHealth from './components/coach/CoachHealth';
 
 // Player Components
 import PlayerDashboard from './components/player/PlayerDashboard';
@@ -139,6 +140,8 @@ function App() {
           return <CoachSchedule user={user} team={team} />;
         case 'chat':
           return <CoachChat user={user} team={team} />;
+        case 'health':
+          return <CoachHealth user={user} team={team} />;
         default:
           return (
             <CoachDashboard 
