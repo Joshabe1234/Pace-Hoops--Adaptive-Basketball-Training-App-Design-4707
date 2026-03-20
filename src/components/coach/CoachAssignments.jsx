@@ -64,7 +64,7 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
       type: newAssignment.type,
       items: newAssignment.items,
       assignedTo,
-      dueDate: new Date(newAssignment.dueDate)
+      dueDate: newAssignment.dueDate // Store as YYYY-MM-DD string, not Date object
     });
 
     setNewAssignment({
@@ -200,7 +200,17 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
       ) : (
         <div className="space-y-4">
           {assignments.map((assignment) => {
-            const isPast = new Date(assignment.dueDate) < new Date();
+            // Parse date as local to avoid timezone issues
+            const parseLocalDate = (dateStr) => {
+              if (!dateStr) return new Date();
+              if (typeof dateStr === 'string' && dateStr.includes('-')) {
+                const [year, month, day] = dateStr.split('T')[0].split('-').map(Number);
+                return new Date(year, month - 1, day);
+              }
+              return new Date(dateStr);
+            };
+            const dueDate = parseLocalDate(assignment.dueDate);
+            const isPast = dueDate < new Date(new Date().setHours(0,0,0,0));
             const itemList = assignment.type === 'drill' 
               ? assignment.items.map(id => allDrills.find(d => d.id === id)).filter(Boolean)
               : assignment.items.map(id => allWorkouts.find(w => w.id === id)).filter(Boolean);
@@ -262,7 +272,7 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
                       {logs.length} logs submitted
                     </span>
                     <span className={isPast ? 'text-red-400' : 'text-slate-400'}>
-                      Due: {new Date(assignment.dueDate).toLocaleDateString()}
+                      Due: {dueDate.toLocaleDateString()}
                     </span>
                   </div>
                 </div>
