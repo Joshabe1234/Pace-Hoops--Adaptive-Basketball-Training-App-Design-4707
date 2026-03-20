@@ -830,12 +830,47 @@ export const createLog = (playerId, data) => {
     time: data.time,
     difficulty: data.difficulty,
     soreness: data.soreness || 'none',
+    injured: data.injured || false,
+    injuryDescription: data.injuryDescription || null,
     notes: data.notes,
     completed: data.completed !== false
   };
   database.logs[id] = log;
   saveDatabase();
   return log;
+};
+
+// Get all injury reports for a team
+export const getTeamInjuries = (teamId) => {
+  forceReload();
+  const team = database.teams[teamId];
+  if (!team) return [];
+  
+  const playerIds = team.playerIds || [];
+  const injuries = [];
+  
+  playerIds.forEach(playerId => {
+    const player = database.users[playerId];
+    const playerLogs = Object.values(database.logs).filter(l => 
+      l.playerId === playerId && l.injured === true
+    );
+    
+    playerLogs.forEach(log => {
+      const drill = database.drills[log.itemId] || database.workouts[log.itemId];
+      injuries.push({
+        id: log.id,
+        player,
+        log,
+        drillName: drill?.name || 'Unknown Exercise',
+        drillCategory: drill?.category || 'unknown',
+        injuryDescription: log.injuryDescription,
+        date: log.createdAt,
+        assignmentId: log.assignmentId
+      });
+    });
+  });
+  
+  return injuries.sort((a, b) => new Date(b.date) - new Date(a.date));
 };
 
 export const getPlayerLogs = (playerId, options = {}) => {
