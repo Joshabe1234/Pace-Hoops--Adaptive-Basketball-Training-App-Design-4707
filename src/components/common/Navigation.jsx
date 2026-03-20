@@ -46,6 +46,7 @@ const Navigation = ({ user, team, currentView, setCurrentView, onLogout, isCoach
     { id: 'roster', label: 'Roster', icon: '👥' },
     { id: 'assignments', label: 'Assignments', icon: '📋' },
     { id: 'stats', label: 'Analytics', icon: '📊' },
+    { id: 'health', label: 'Health', icon: '🏥' },
     { id: 'schedule', label: 'Schedule', icon: '📅' },
     { id: 'chat', label: 'Chat', icon: '💬', badge: unreadCount }
   ];
