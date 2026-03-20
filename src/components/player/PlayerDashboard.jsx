@@ -217,16 +217,32 @@ const PlayerDashboard = ({ user, team, onTeamJoined, refreshUser, setCurrentView
   const assignments = getPlayerAssignments(user.id, team.id);
   const schedule = getTeamSchedule(team.id);
   const coach = getUser(team.coachId);
+
+  // Parse date string as local date (YYYY-MM-DD)
+  const parseLocalDate = (dateStr) => {
+    if (!dateStr) return new Date();
+    if (typeof dateStr === 'string' && dateStr.includes('-')) {
+      const [year, month, day] = dateStr.split('T')[0].split('-').map(Number);
+      return new Date(year, month - 1, day);
+    }
+    return new Date(dateStr);
+  };
   
   // Filter to only pending (not completed) assignments
   const pendingAssignments = assignments.filter(a => {
-    const isPastDue = new Date(a.dueDate) < new Date();
+    const dueDate = parseLocalDate(a.dueDate);
+    const isPastDue = dueDate < new Date(new Date().setHours(0,0,0,0));
     const isCompleted = isAssignmentCompleted(a);
     return !isCompleted && !isPastDue;
   }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)); // Sort by most recent
 
-  // Upcoming events
-  const upcomingEvents = schedule.filter(e => new Date(e.date) >= new Date());
+  // Upcoming events - parse dates correctly
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const upcomingEvents = schedule.filter(e => {
+    const eventDate = parseLocalDate(e.date);
+    return eventDate >= today;
+  });
 
   return (
     <div className="p-6 space-y-6" key={refreshKey}>
@@ -384,7 +400,9 @@ const PlayerDashboard = ({ user, team, onTeamJoined, refreshUser, setCurrentView
             </div>
           ) : (
             <div className="space-y-3">
-              {upcomingEvents.slice(0, 3).map((event) => (
+              {upcomingEvents.slice(0, 3).map((event) => {
+                const eventDate = parseLocalDate(event.date);
+                return (
                 <button
                   key={event.id}
                   onClick={handleScheduleClick}
@@ -392,10 +410,10 @@ const PlayerDashboard = ({ user, team, onTeamJoined, refreshUser, setCurrentView
                 >
                   <div className="w-12 h-12 bg-slate-600 rounded-lg flex flex-col items-center justify-center flex-shrink-0">
                     <span className="text-xs text-slate-400">
-                      {new Date(event.date).toLocaleDateString('en-US', { month: 'short' })}
+                      {eventDate.toLocaleDateString('en-US', { month: 'short' })}
                     </span>
                     <span className="text-lg font-bold text-white">
-                      {new Date(event.date).getDate()}
+                      {eventDate.getDate()}
                     </span>
                   </div>
                   <div className="min-w-0 flex-1">
@@ -412,7 +430,7 @@ const PlayerDashboard = ({ user, team, onTeamJoined, refreshUser, setCurrentView
                     {event.type}
                   </span>
                 </button>
-              ))}
+              )})}
             </div>
           )}
         </div>
