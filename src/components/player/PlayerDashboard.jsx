@@ -325,7 +325,7 @@ const PlayerDashboard = ({ user, team, onTeamJoined, refreshUser, setCurrentView
                           </span>
                         </div>
                         <p className="text-sm text-slate-400 mt-1">
-                          Due {new Date(assignment.dueDate).toLocaleDateString()}
+                          Due {parseLocalDate(assignment.dueDate).toLocaleDateString()}
                         </p>
                         {/* Progress bar */}
                         <div className="mt-2 h-1.5 bg-slate-600 rounded-full overflow-hidden">
