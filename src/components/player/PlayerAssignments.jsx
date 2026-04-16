@@ -55,6 +55,16 @@ const PlayerAssignments = ({ user, team }) => {
   const logs = getPlayerLogs(user.id);
   const assignments = team ? getPlayerAssignments(user.id, team.id) : [];
 
+  // Parse date string as local date (YYYY-MM-DD) to avoid timezone issues
+  const parseLocalDate = (dateStr) => {
+    if (!dateStr) return new Date();
+    if (typeof dateStr === 'string' && dateStr.includes('-')) {
+      const [year, month, day] = dateStr.split('T')[0].split('-').map(Number);
+      return new Date(year, month - 1, day);
+    }
+    return new Date(dateStr);
+  };
+
   const saveGoals = (goals) => {
     setPersonalGoals(goals);
     localStorage.setItem(`paceHoops_goals_${user.id}`, JSON.stringify(goals));
@@ -135,7 +145,7 @@ const PlayerAssignments = ({ user, team }) => {
   };
 
   const pendingAssignments = assignments.filter(a => {
-    const isPastDue = new Date(a.dueDate) < new Date();
+    const isPastDue = parseLocalDate(a.dueDate) < new Date(new Date().setHours(0,0,0,0));
     const isCompleted = isAssignmentCompleted(a);
     return !isPastDue && !isCompleted;
   });
@@ -268,7 +278,7 @@ const PlayerAssignments = ({ user, team }) => {
                     <div className="flex items-center justify-between">
                       <div>
                         <h3 className="font-semibold text-white">{assignment.title}</h3>
-                        <p className="text-sm text-slate-400">Due {new Date(assignment.dueDate).toLocaleDateString()}</p>
+                        <p className="text-sm text-slate-400">Due {parseLocalDate(assignment.dueDate).toLocaleDateString()}</p>
                       </div>
                       <span className={`px-3 py-1 text-sm rounded-full ${
                         assignment.type === 'drill' ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400'
