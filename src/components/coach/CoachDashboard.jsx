@@ -36,6 +36,23 @@ const CoachDashboard = ({ user, team, onNavigate }) => {
   const dmUnread = getUnreadDMCount(user.id);
   const injuries = team ? getTeamInjuries(team.id) : [];
 
+  // Parse date string as local date (YYYY-MM-DD) to avoid timezone issues
+  const parseLocalDate = (dateStr) => {
+    if (!dateStr) return new Date();
+    if (typeof dateStr === 'string' && dateStr.includes('-')) {
+      const [year, month, day] = dateStr.split('T')[0].split('-').map(Number);
+      return new Date(year, month - 1, day);
+    }
+    return new Date(dateStr);
+  };
+
+  const formatDate = (dateStr) => {
+    return parseLocalDate(dateStr).toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric' 
+    });
+  };
+
   // Get recent injuries (last 7 days)
   const recentInjuries = injuries.filter(i => {
     const injuryDate = new Date(i.date);
@@ -49,8 +66,8 @@ const CoachDashboard = ({ user, team, onNavigate }) => {
   oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
   
   const pastAssignments = allAssignments.filter(a => {
-    const dueDate = new Date(a.dueDate);
-    const isPastDue = dueDate < new Date();
+    const dueDate = parseLocalDate(a.dueDate);
+    const isPastDue = dueDate < new Date(new Date().setHours(0,0,0,0));
     const isWithinWeek = dueDate >= oneWeekAgo;
     const isInactive = a.status !== 'active' || isPastDue;
     return isInactive && isWithinWeek;
@@ -63,13 +80,6 @@ const CoachDashboard = ({ user, team, onNavigate }) => {
     oneDayAgo.setDate(oneDayAgo.getDate() - 1);
     return msgDate >= oneDayAgo;
   });
-
-  const formatDate = (dateStr) => {
-    return new Date(dateStr).toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric' 
-    });
-  };
 
   const handleAssignmentClick = (assignment) => {
     // Navigate to analytics with the assignment selected
