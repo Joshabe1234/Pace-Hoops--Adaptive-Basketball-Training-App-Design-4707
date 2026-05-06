@@ -1,15 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
     <clipPath id="c">
-      <circle cx="256" cy="256" r="156"/>
+      <circle cx="256" cy="256" r="155"/>
     </clipPath>
+    <radialGradient id="g" cx="38%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#fb923c"/>
+      <stop offset="100%" stop-color="#c2410c"/>
+    </radialGradient>
   </defs>
   <rect width="512" height="512" rx="112" fill="#f97316"/>
-  <circle cx="256" cy="256" r="156" fill="#ea580c"/>
-  <g clip-path="url(#c)" fill="none" stroke="#c2410c" stroke-width="14" stroke-linecap="round">
-    <line x1="100" y1="256" x2="412" y2="256"/>
-    <path d="M256 100 C190 130 165 195 165 256 C165 317 190 382 256 412"/>
-    <path d="M256 100 C322 130 347 195 347 256 C347 317 322 382 256 412"/>
+  <circle cx="256" cy="256" r="155" fill="url(#g)" stroke="#1c0a00" stroke-width="12"/>
+  <g clip-path="url(#c)" fill="none" stroke="#1c0a00" stroke-width="20" stroke-linecap="round">
+    <line x1="101" y1="256" x2="411" y2="256"/>
+    <path d="M 235,102 A 165,165 0 0,1 235,410"/>
+    <path d="M 277,102 A 165,165 0 0,0 277,410"/>
   </g>
-  <circle cx="256" cy="256" r="156" fill="none" stroke="#f97316" stroke-width="8" opacity="0.5"/>
 </svg>
