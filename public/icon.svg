@@ -1,17 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- Orange rounded background -->
+  <defs>
+    <clipPath id="c">
+      <circle cx="256" cy="256" r="156"/>
+    </clipPath>
+  </defs>
   <rect width="512" height="512" rx="112" fill="#f97316"/>
-  <!-- Basketball circle -->
-  <circle cx="256" cy="256" r="168" fill="#ea580c"/>
-  <!-- Basketball seam lines - bold and high contrast -->
-  <!-- Horizontal line -->
-  <line x1="88" y1="256" x2="424" y2="256" stroke="#c2410c" stroke-width="18" stroke-linecap="round"/>
-  <!-- Vertical line -->
-  <line x1="256" y1="88" x2="256" y2="424" stroke="#c2410c" stroke-width="18" stroke-linecap="round"/>
-  <!-- Left curve -->
-  <path d="M160 96 Q100 256 160 416" stroke="#c2410c" stroke-width="18" fill="none" stroke-linecap="round"/>
-  <!-- Right curve -->
-  <path d="M352 96 Q412 256 352 416" stroke="#c2410c" stroke-width="18" fill="none" stroke-linecap="round"/>
-  <!-- Highlight for depth -->
-  <circle cx="256" cy="256" r="168" fill="none" stroke="#fb923c" stroke-width="6" opacity="0.4"/>
+  <circle cx="256" cy="256" r="156" fill="#ea580c"/>
+  <g clip-path="url(#c)" fill="none" stroke="#c2410c" stroke-width="14" stroke-linecap="round">
+    <line x1="100" y1="256" x2="412" y2="256"/>
+    <path d="M256 100 C190 130 165 195 165 256 C165 317 190 382 256 412"/>
+    <path d="M256 100 C322 130 347 195 347 256 C347 317 322 382 256 412"/>
+  </g>
+  <circle cx="256" cy="256" r="156" fill="none" stroke="#f97316" stroke-width="8" opacity="0.5"/>
 </svg>
