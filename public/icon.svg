@@ -2,14 +2,16 @@
   <!-- Orange rounded background -->
   <rect width="512" height="512" rx="112" fill="#f97316"/>
   <!-- Basketball circle -->
-  <circle cx="256" cy="256" r="160" fill="#ea580c" stroke="#c2410c" stroke-width="8"/>
-  <!-- Basketball lines -->
-  <!-- Vertical center line -->
-  <path d="M256 96 Q256 256 256 416" stroke="#c2410c" stroke-width="10" fill="none"/>
-  <!-- Horizontal center line -->
-  <path d="M96 256 Q256 256 416 256" stroke="#c2410c" stroke-width="10" fill="none"/>
+  <circle cx="256" cy="256" r="168" fill="#ea580c"/>
+  <!-- Basketball seam lines - bold and high contrast -->
+  <!-- Horizontal line -->
+  <line x1="88" y1="256" x2="424" y2="256" stroke="#c2410c" stroke-width="18" stroke-linecap="round"/>
+  <!-- Vertical line -->
+  <line x1="256" y1="88" x2="256" y2="424" stroke="#c2410c" stroke-width="18" stroke-linecap="round"/>
   <!-- Left curve -->
-  <path d="M130 140 Q180 256 130 372" stroke="#c2410c" stroke-width="10" fill="none"/>
+  <path d="M160 96 Q100 256 160 416" stroke="#c2410c" stroke-width="18" fill="none" stroke-linecap="round"/>
   <!-- Right curve -->
-  <path d="M382 140 Q332 256 382 372" stroke="#c2410c" stroke-width="10" fill="none"/>
+  <path d="M352 96 Q412 256 352 416" stroke="#c2410c" stroke-width="18" fill="none" stroke-linecap="round"/>
+  <!-- Highlight for depth -->
+  <circle cx="256" cy="256" r="168" fill="none" stroke="#fb923c" stroke-width="6" opacity="0.4"/>
 </svg>
