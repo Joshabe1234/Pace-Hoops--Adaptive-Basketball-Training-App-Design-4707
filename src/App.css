@@ -55,3 +55,14 @@ input[type="range"]::-moz-range-thumb {
 ::-webkit-scrollbar-thumb:hover {
   background: #64748b;
 }
+
+/* PWA safe area: push main content below fixed header including iOS status bar */
+.main-content {
+  padding-top: calc(3.5rem + env(safe-area-inset-top, 0px));
+}
+
+@media (min-width: 768px) {
+  .main-content {
+    padding-top: 0;
+  }
+}
