@@ -56,13 +56,15 @@ input[type="range"]::-moz-range-thumb {
   background: #64748b;
 }
 
-/* PWA safe area: push main content below fixed header including iOS status bar */
+/* PWA safe area: offset for fixed header and bottom nav including iOS notch/home indicator */
 .main-content {
   padding-top: calc(3.5rem + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
 }
 
 @media (min-width: 768px) {
   .main-content {
     padding-top: 0;
+    padding-bottom: 0;
   }
 }

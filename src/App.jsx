@@ -216,7 +216,7 @@ function App() {
         isCoach={isCoach}
       />
 
-      <main className="flex-1 md:ml-64 pb-20 md:pb-0 min-h-screen overflow-x-hidden main-content">
+      <main className="flex-1 md:ml-64 min-h-screen overflow-x-hidden main-content">
         <AnimatePresence mode="wait">
           <motion.div
             key={currentView}
