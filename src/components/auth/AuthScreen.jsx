@@ -465,7 +465,10 @@ const AuthScreen = ({ onLogin }) => {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">Pace Hoops</h1>
+          <div className="flex items-center justify-center space-x-3 mb-2">
+            <img src="/favicon64.png" alt="Pace Hoops" className="w-10 h-10 rounded-xl" />
+            <h1 className="text-2xl sm:text-3xl font-bold text-white">Pace Hoops</h1>
+          </div>
           <p className="text-slate-400 text-sm">Basketball Training Platform</p>
         </div>
 
