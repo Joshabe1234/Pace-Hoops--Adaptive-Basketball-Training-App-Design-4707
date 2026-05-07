@@ -22,6 +22,7 @@ const PlayerChat = ({ user, team }) => {
   const [conversations, setConversations] = useState([]);
   const [unreadDMCount, setUnreadDMCount] = useState(0);
   const messagesEndRef = useRef(null);
+  const prevMsgCountRef = useRef(0);
 
   const players = team ? getTeamPlayers(team.id) : [];
   const teamData = team ? getTeam(team.id) : null;
@@ -65,7 +66,11 @@ const PlayerChat = ({ user, team }) => {
   }, [team?.id, user.id, dmRecipient?.id]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const total = messages.length + dmMessages.length;
+    if (total > prevMsgCountRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      prevMsgCountRef.current = total;
+    }
   }, [messages, dmMessages]);
 
   const handleSendTeamMessage = () => {
