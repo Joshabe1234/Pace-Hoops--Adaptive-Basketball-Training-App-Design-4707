@@ -175,32 +175,18 @@ const AuthScreen = ({ onLogin }) => {
 
       <button
         onClick={() => setMode('coach-signup')}
-        className="w-full p-4 sm:p-6 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl text-left hover:from-orange-400 hover:to-orange-500 transition-all"
+        className="w-full p-4 sm:p-6 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl text-center hover:from-orange-400 hover:to-orange-500 transition-all"
       >
-        <div className="flex items-center space-x-4">
-          <div className="w-12 h-12 sm:w-14 sm:h-14 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
-            <span className="text-2xl">🏀</span>
-          </div>
-          <div className="min-w-0">
-            <h3 className="text-lg sm:text-xl font-bold text-white">I'm a Coach</h3>
-            <p className="text-white/80 text-sm">Manage your team and track progress</p>
-          </div>
-        </div>
+        <h3 className="text-lg sm:text-xl font-bold text-white">I'm a Coach</h3>
+        <p className="text-white/80 text-sm mt-1">Manage your team and track progress</p>
       </button>
 
       <button
         onClick={() => setMode('player-signup')}
-        className="w-full p-4 sm:p-6 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl text-left hover:from-blue-400 hover:to-blue-500 transition-all"
+        className="w-full p-4 sm:p-6 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl text-center hover:from-blue-400 hover:to-blue-500 transition-all"
       >
-        <div className="flex items-center space-x-4">
-          <div className="w-12 h-12 sm:w-14 sm:h-14 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
-            <span className="text-2xl">💪</span>
-          </div>
-          <div className="min-w-0">
-            <h3 className="text-lg sm:text-xl font-bold text-white">I'm a Player</h3>
-            <p className="text-white/80 text-sm">Track your training and improve</p>
-          </div>
-        </div>
+        <h3 className="text-lg sm:text-xl font-bold text-white">I'm a Player</h3>
+        <p className="text-white/80 text-sm mt-1">Track your training and improve</p>
       </button>
 
       <div className="text-center pt-4">
@@ -479,12 +465,7 @@ const AuthScreen = ({ onLogin }) => {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-6">
-          <div className="inline-flex items-center space-x-3 mb-2">
-            <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center">
-              <span className="text-2xl">🏀</span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-white">Pace Hoops</h1>
-          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">Pace Hoops</h1>
           <p className="text-slate-400 text-sm">Basketball Training Platform</p>
         </div>
 
