@@ -5,18 +5,19 @@ import {
   markMessageRead,
   getTeamPlayers,
   getUser,
-  getTeam,
   createDirectMessage,
   getDirectMessages,
   getConversations,
   markConversationRead,
   getUnreadDMCount
-} from '../../data/database';
+} from '../../data/supabaseDb';
 
 const PlayerChat = ({ user, team }) => {
   const [messages, setMessages] = useState([]);
+  const [players, setPlayers] = useState([]);
+  const [coachProfile, setCoachProfile] = useState(null);
   const [newMessage, setNewMessage] = useState('');
-  const [chatMode, setChatMode] = useState('team'); // 'team', 'dm-list', 'dm-chat'
+  const [chatMode, setChatMode] = useState('team');
   const [dmRecipient, setDmRecipient] = useState(null);
   const [dmMessages, setDmMessages] = useState([]);
   const [conversations, setConversations] = useState([]);
@@ -24,44 +25,42 @@ const PlayerChat = ({ user, team }) => {
   const messagesEndRef = useRef(null);
   const prevMsgCountRef = useRef(0);
 
-  const players = team ? getTeamPlayers(team.id) : [];
-  const teamData = team ? getTeam(team.id) : null;
-  const coach = teamData ? getUser(teamData.coachId) : null;
+  const loadData = async () => {
+    if (!team) return;
 
-  // All people this player can DM (teammates + coach)
-  const dmContacts = [
-    ...(coach ? [{ ...coach, isCoach: true }] : []),
-    ...players.filter(p => p.id !== user.id)
-  ];
+    const [ps, teamMsgs, convs, unread] = await Promise.all([
+      getTeamPlayers(team.id),
+      getTeamMessages(team.id),
+      getConversations(user.id),
+      getUnreadDMCount(user.id)
+    ]);
 
-  const loadData = () => {
-    if (team) {
-      // Team messages
-      const teamMsgs = getTeamMessages(team.id);
-      setMessages(teamMsgs);
-      teamMsgs.forEach(m => {
-        if (!m.readBy?.includes(user.id)) {
-          markMessageRead(m.id, user.id);
-        }
-      });
+    setPlayers(ps);
+    setMessages(teamMsgs);
+    setConversations(convs);
+    setUnreadDMCount(unread);
 
-      // DM conversations
-      const convs = getConversations(user.id);
-      setConversations(convs);
-      setUnreadDMCount(getUnreadDMCount(user.id));
+    if (team.coachId) {
+      const coach = await getUser(team.coachId);
+      setCoachProfile(coach);
+    }
 
-      // Current DM chat
-      if (dmRecipient) {
-        const dms = getDirectMessages(user.id, dmRecipient.id);
-        setDmMessages(dms);
-        markConversationRead(user.id, dmRecipient.id);
-      }
+    await Promise.all(
+      teamMsgs
+        .filter(m => !m.readBy?.includes(user.id))
+        .map(m => markMessageRead(m.id, user.id))
+    );
+
+    if (dmRecipient) {
+      const dms = await getDirectMessages(user.id, dmRecipient.id);
+      setDmMessages(dms);
+      await markConversationRead(user.id, dmRecipient.id);
     }
   };
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 2000);
+    const interval = setInterval(loadData, 3000);
     return () => clearInterval(interval);
   }, [team?.id, user.id, dmRecipient?.id]);
 
@@ -73,40 +72,44 @@ const PlayerChat = ({ user, team }) => {
     }
   }, [messages, dmMessages]);
 
-  const handleSendTeamMessage = () => {
+  const usersMap = { [user.id]: user };
+  players.forEach(p => { usersMap[p.id] = p; });
+  if (coachProfile) usersMap[coachProfile.id] = coachProfile;
+
+  const dmContacts = [
+    ...(coachProfile ? [coachProfile] : []),
+    ...players.filter(p => p.id !== user.id)
+  ];
+
+  const handleSendTeamMessage = async () => {
     if (!newMessage.trim() || !team) return;
-    createMessage(user.id, { teamId: team.id, content: newMessage.trim() });
+    await createMessage(user.id, { teamId: team.id, content: newMessage.trim() });
     setNewMessage('');
     loadData();
   };
 
-  const handleSendDM = () => {
+  const handleSendDM = async () => {
     if (!newMessage.trim() || !dmRecipient) return;
-    createDirectMessage(user.id, dmRecipient.id, newMessage.trim());
+    await createDirectMessage(user.id, dmRecipient.id, newMessage.trim());
     setNewMessage('');
     loadData();
   };
 
-  const openDMChat = (contact) => {
+  const openDMChat = async (contact) => {
     setDmRecipient(contact);
     setChatMode('dm-chat');
-    markConversationRead(user.id, contact.id);
-    const dms = getDirectMessages(user.id, contact.id);
+    const dms = await getDirectMessages(user.id, contact.id);
     setDmMessages(dms);
+    await markConversationRead(user.id, contact.id);
   };
 
   const formatTime = (dateString) => {
     const date = new Date(dateString);
     const now = new Date();
     const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 0) {
-      return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    } else if (diffDays === 1) {
-      return 'Yesterday';
-    } else if (diffDays < 7) {
-      return date.toLocaleDateString([], { weekday: 'short' });
-    }
+    if (diffDays === 0) return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return date.toLocaleDateString([], { weekday: 'short' });
     return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
   };
 
@@ -122,18 +125,13 @@ const PlayerChat = ({ user, team }) => {
     );
   }
 
-  // DM Chat View
   if (chatMode === 'dm-chat' && dmRecipient) {
     const isCoach = dmRecipient.role === 'coach';
     return (
       <div className="flex flex-col" style={{ height: 'calc(100dvh - 136px)' }}>
-        {/* DM Header */}
         <div className="p-4 bg-slate-800 border-b border-slate-700 flex items-center space-x-3">
           <button
-            onClick={() => {
-              setChatMode('dm-list');
-              setDmRecipient(null);
-            }}
+            onClick={() => { setChatMode('dm-list'); setDmRecipient(null); }}
             className="p-2 hover:bg-slate-700 rounded-lg"
           >
             <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -151,7 +149,6 @@ const PlayerChat = ({ user, team }) => {
           </div>
         </div>
 
-        {/* DM Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {dmMessages.length === 0 ? (
             <div className="text-center py-8">
@@ -162,23 +159,12 @@ const PlayerChat = ({ user, team }) => {
             dmMessages.map((msg) => {
               const isMe = msg.senderId === user.id;
               return (
-                <div
-                  key={msg.id}
-                  className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
-                >
+                <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[75%] ${isMe ? 'order-2' : ''}`}>
-                    <div
-                      className={`p-3 rounded-2xl ${
-                        isMe
-                          ? 'bg-blue-500 text-white rounded-br-md'
-                          : 'bg-slate-700 text-white rounded-bl-md'
-                      }`}
-                    >
+                    <div className={`p-3 rounded-2xl ${isMe ? 'bg-blue-500 text-white rounded-br-md' : 'bg-slate-700 text-white rounded-bl-md'}`}>
                       <p className="text-sm">{msg.content}</p>
                     </div>
-                    <p className={`text-xs text-slate-500 mt-1 ${isMe ? 'text-right' : ''}`}>
-                      {formatTime(msg.createdAt)}
-                    </p>
+                    <p className={`text-xs text-slate-500 mt-1 ${isMe ? 'text-right' : ''}`}>{formatTime(msg.createdAt)}</p>
                   </div>
                 </div>
               );
@@ -187,7 +173,6 @@ const PlayerChat = ({ user, team }) => {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* DM Input */}
         <div className="p-4 bg-slate-800 border-t border-slate-700">
           <div className="flex space-x-2">
             <input
@@ -213,7 +198,6 @@ const PlayerChat = ({ user, team }) => {
     );
   }
 
-  // DM List View
   if (chatMode === 'dm-list') {
     return (
       <div className="p-4 md:p-6 space-y-4">
@@ -222,38 +206,32 @@ const PlayerChat = ({ user, team }) => {
             <h1 className="text-2xl font-bold text-white">Direct Messages</h1>
             <p className="text-slate-400">Private conversations</p>
           </div>
-          <button
-            onClick={() => setChatMode('team')}
-            className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600"
-          >
+          <button onClick={() => setChatMode('team')} className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600">
             Team Chat
           </button>
         </div>
 
-        {/* Contact list for new DM */}
         <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
           <h3 className="text-sm font-medium text-slate-400 mb-3">Start new conversation</h3>
-          
-          {/* Coach (featured) */}
-          {coach && (
+
+          {coachProfile && (
             <div className="mb-4">
               <p className="text-xs text-slate-500 mb-2">COACH</p>
               <button
-                onClick={() => openDMChat(coach)}
+                onClick={() => openDMChat(coachProfile)}
                 className="w-full flex items-center space-x-3 p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg hover:bg-orange-500/20 text-left"
               >
                 <div className="w-10 h-10 bg-orange-500 rounded-full flex items-center justify-center text-white font-semibold">
-                  {coach.name?.charAt(0)?.toUpperCase()}
+                  {coachProfile.name?.charAt(0)?.toUpperCase()}
                 </div>
                 <div>
-                  <p className="text-white font-medium">{coach.name}</p>
+                  <p className="text-white font-medium">{coachProfile.name}</p>
                   <p className="text-orange-400 text-xs">Coach</p>
                 </div>
               </button>
             </div>
           )}
 
-          {/* Teammates */}
           {players.filter(p => p.id !== user.id).length > 0 && (
             <div>
               <p className="text-xs text-slate-500 mb-2">TEAMMATES</p>
@@ -269,9 +247,7 @@ const PlayerChat = ({ user, team }) => {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-white text-sm font-medium truncate">{player.name}</p>
-                      <p className="text-slate-400 text-xs">
-                        {player.position && `${player.position}`}
-                      </p>
+                      <p className="text-slate-400 text-xs">{player.position || ''}</p>
                     </div>
                   </button>
                 ))}
@@ -284,7 +260,6 @@ const PlayerChat = ({ user, team }) => {
           )}
         </div>
 
-        {/* Recent conversations */}
         <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
           <h3 className="text-sm font-medium text-slate-400 p-4 border-b border-slate-700">Recent conversations</h3>
           {conversations.length === 0 ? (
@@ -295,7 +270,7 @@ const PlayerChat = ({ user, team }) => {
                 const isCoachConv = conv.otherUser?.role === 'coach';
                 return (
                   <button
-                    key={conv.oderId}
+                    key={conv.otherId}
                     onClick={() => conv.otherUser && openDMChat(conv.otherUser)}
                     className="w-full p-4 hover:bg-slate-700 flex items-center space-x-3 text-left"
                   >
@@ -330,10 +305,8 @@ const PlayerChat = ({ user, team }) => {
     );
   }
 
-  // Team Chat View (default)
   return (
-    <div className="flex flex-col h-[calc(100vh-140px)]">
-      {/* Header */}
+    <div className="flex flex-col" style={{ height: 'calc(100dvh - 136px)' }}>
       <div className="p-4 bg-slate-800 border-b border-slate-700 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-white">{team.name} Chat</h1>
@@ -355,7 +328,6 @@ const PlayerChat = ({ user, team }) => {
         </button>
       </div>
 
-      {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {messages.length === 0 ? (
           <div className="text-center py-8">
@@ -365,38 +337,27 @@ const PlayerChat = ({ user, team }) => {
           </div>
         ) : (
           messages.map((msg) => {
-            const sender = getUser(msg.senderId);
+            const sender = usersMap[msg.senderId];
             const isMe = msg.senderId === user.id;
             const isCoachMsg = sender?.role === 'coach';
             return (
-              <div
-                key={msg.id}
-                className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
-              >
+              <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                 {!isMe && (
                   <div className={`w-8 h-8 ${isCoachMsg ? 'bg-orange-500' : 'bg-blue-500'} rounded-full flex items-center justify-center text-white text-sm font-semibold mr-2 flex-shrink-0`}>
                     {sender?.name?.charAt(0)?.toUpperCase() || '?'}
                   </div>
                 )}
-                <div className={`max-w-[75%]`}>
+                <div className="max-w-[75%]">
                   {!isMe && (
                     <p className="text-xs text-slate-400 mb-1">
                       {sender?.name || 'Unknown'}
                       {isCoachMsg && <span className="text-orange-400 ml-1">• Coach</span>}
                     </p>
                   )}
-                  <div
-                    className={`p-3 rounded-2xl ${
-                      isMe
-                        ? 'bg-blue-500 text-white rounded-br-md'
-                        : 'bg-slate-700 text-white rounded-bl-md'
-                    }`}
-                  >
+                  <div className={`p-3 rounded-2xl ${isMe ? 'bg-blue-500 text-white rounded-br-md' : 'bg-slate-700 text-white rounded-bl-md'}`}>
                     <p className="text-sm">{msg.content}</p>
                   </div>
-                  <p className={`text-xs text-slate-500 mt-1 ${isMe ? 'text-right' : ''}`}>
-                    {formatTime(msg.createdAt)}
-                  </p>
+                  <p className={`text-xs text-slate-500 mt-1 ${isMe ? 'text-right' : ''}`}>{formatTime(msg.createdAt)}</p>
                 </div>
               </div>
             );
@@ -405,7 +366,6 @@ const PlayerChat = ({ user, team }) => {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
       <div className="p-4 bg-slate-800 border-t border-slate-700">
         <div className="flex space-x-2">
           <input

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { initializeDatabase, getUser, getTeam } from './data/database';
+import { supabase } from './lib/supabase';
+import { getUserByAuthId, getUser, getTeam } from './data/supabaseDb';
 
 // Auth
 import AuthScreen from './components/auth/AuthScreen';
@@ -29,76 +30,82 @@ function App() {
   const [user, setUser] = useState(null);
   const [team, setTeam] = useState(null);
   const [currentView, setCurrentView] = useState('home');
-  
-  // Navigation state for passing data between views
   const [navState, setNavState] = useState({});
 
   useEffect(() => {
-    initializeDatabase();
-    setIsLoading(false);
+    const restoreSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const profile = await getUserByAuthId(session.user.id);
+        if (profile) {
+          let userTeam = null;
+          if (profile.role === 'coach' && profile.teamIds?.length > 0) {
+            userTeam = await getTeam(profile.teamIds[0]);
+          } else if (profile.role === 'player' && profile.teamId) {
+            userTeam = await getTeam(profile.teamId);
+          }
+          setUser(profile);
+          setTeam(userTeam);
+        }
+      }
+      setIsLoading(false);
+    };
+    restoreSession();
   }, []);
 
   const handleLogin = (loggedInUser, userTeam) => {
-    console.log('handleLogin called with:', loggedInUser, userTeam);
     setUser(loggedInUser);
     setTeam(userTeam || null);
     setCurrentView('home');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     setUser(null);
     setTeam(null);
     setCurrentView('home');
     setNavState({});
   };
 
-  const handleTeamJoined = (newTeam) => {
-    console.log('handleTeamJoined:', newTeam);
-    setTeam(newTeam);
-  };
+  const handleTeamJoined = (newTeam) => setTeam(newTeam);
+  const handleTeamCreated = (newTeam) => setTeam(newTeam);
 
-  const handleTeamCreated = (newTeam) => {
-    console.log('handleTeamCreated:', newTeam);
-    setTeam(newTeam);
-  };
-
-  const refreshUser = () => {
-    if (user) {
-      const refreshedUser = getUser(user.id);
-      if (refreshedUser) {
-        setUser(refreshedUser);
-        if (refreshedUser.teamId) {
-          setTeam(getTeam(refreshedUser.teamId));
-        } else {
-          setTeam(null);
-        }
+  const refreshUser = async () => {
+    if (!user) return;
+    const refreshed = await getUser(user.id);
+    if (refreshed) {
+      setUser(refreshed);
+      if (refreshed.teamId) {
+        setTeam(await getTeam(refreshed.teamId));
+      } else {
+        setTeam(null);
       }
     }
+  };
+
+  const refreshTeam = async () => {
+    if (!team) return;
+    const refreshed = await getTeam(team.id);
+    if (refreshed) setTeam(refreshed);
   };
 
   // Detect when a player is removed from their team by the coach
   useEffect(() => {
     if (!user || user.role === 'coach' || !team) return;
-    const interval = setInterval(() => {
-      const freshUser = getUser(user.id);
-      if (freshUser && !freshUser.teamId) {
+    let active = true;
+    const interval = setInterval(async () => {
+      const freshUser = await getUser(user.id);
+      if (active && freshUser && !freshUser.teamId) {
         setUser(freshUser);
         setTeam(null);
       }
-    }, 3000);
-    return () => clearInterval(interval);
+    }, 5000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, [user?.id, user?.role, team?.id]);
 
-  const refreshTeam = () => {
-    if (team) {
-      const refreshedTeam = getTeam(team.id);
-      if (refreshedTeam) {
-        setTeam(refreshedTeam);
-      }
-    }
-  };
-
-  // Navigation handler that can pass state between views
   const handleNavigate = (view, state = {}) => {
     setNavState(state);
     setCurrentView(view);
@@ -123,34 +130,17 @@ function App() {
 
   const isCoach = user.role === 'coach';
 
-  // Debug log
-  console.log('Rendering app with user:', user?.name, 'team:', team?.name);
-
   const renderContent = () => {
     if (isCoach) {
       switch (currentView) {
         case 'home':
-          return (
-            <CoachDashboard 
-              user={user} 
-              team={team} 
-              onTeamCreated={handleTeamCreated} 
-              refreshTeam={refreshTeam}
-              onNavigate={handleNavigate}
-            />
-          );
+          return <CoachDashboard user={user} team={team} onTeamCreated={handleTeamCreated} refreshTeam={refreshTeam} onNavigate={handleNavigate} />;
         case 'roster':
           return <CoachRoster user={user} team={team} refreshTeam={refreshTeam} />;
         case 'assignments':
           return <CoachAssignments user={user} team={team} refreshTeam={refreshTeam} />;
         case 'stats':
-          return (
-            <CoachStats 
-              user={user} 
-              team={team} 
-              selectedAssignment={navState.selectedAssignment}
-            />
-          );
+          return <CoachStats user={user} team={team} selectedAssignment={navState.selectedAssignment} />;
         case 'schedule':
           return <CoachSchedule user={user} team={team} />;
         case 'chat':
@@ -158,28 +148,12 @@ function App() {
         case 'health':
           return <CoachHealth user={user} team={team} />;
         default:
-          return (
-            <CoachDashboard 
-              user={user} 
-              team={team} 
-              onTeamCreated={handleTeamCreated} 
-              refreshTeam={refreshTeam}
-              onNavigate={handleNavigate}
-            />
-          );
+          return <CoachDashboard user={user} team={team} onTeamCreated={handleTeamCreated} refreshTeam={refreshTeam} onNavigate={handleNavigate} />;
       }
     } else {
       switch (currentView) {
         case 'home':
-          return (
-            <PlayerDashboard 
-              user={user} 
-              team={team} 
-              onTeamJoined={handleTeamJoined} 
-              refreshUser={refreshUser} 
-              setCurrentView={setCurrentView}
-            />
-          );
+          return <PlayerDashboard user={user} team={team} onTeamJoined={handleTeamJoined} refreshUser={refreshUser} setCurrentView={setCurrentView} />;
         case 'training':
           return <PlayerAssignments user={user} team={team} />;
         case 'stats':
@@ -189,15 +163,7 @@ function App() {
         case 'chat':
           return <PlayerChat user={user} team={team} />;
         default:
-          return (
-            <PlayerDashboard 
-              user={user} 
-              team={team} 
-              onTeamJoined={handleTeamJoined} 
-              refreshUser={refreshUser} 
-              setCurrentView={setCurrentView}
-            />
-          );
+          return <PlayerDashboard user={user} team={team} onTeamJoined={handleTeamJoined} refreshUser={refreshUser} setCurrentView={setCurrentView} />;
       }
     }
   };
@@ -209,13 +175,12 @@ function App() {
         team={team}
         currentView={currentView}
         setCurrentView={(view) => {
-          setNavState({}); // Clear nav state when using regular navigation
+          setNavState({});
           setCurrentView(view);
         }}
         onLogout={handleLogout}
         isCoach={isCoach}
       />
-
       <main className="flex-1 md:ml-64 min-h-screen overflow-x-hidden main-content">
         <AnimatePresence mode="wait">
           <motion.div

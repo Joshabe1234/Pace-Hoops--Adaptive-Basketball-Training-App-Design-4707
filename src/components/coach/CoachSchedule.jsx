@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getTeamSchedule, createScheduleEvent, deleteScheduleEvent } from '../../data/database';
+import { getTeamSchedule, createScheduleEvent, deleteScheduleEvent } from '../../data/supabaseDb';
 
 const CoachSchedule = ({ user, team }) => {
   const [events, setEvents] = useState([]);
@@ -26,8 +26,8 @@ const CoachSchedule = ({ user, team }) => {
     }
   }, [team?.id]);
 
-  const loadEvents = () => {
-    const teamEvents = getTeamSchedule(team.id);
+  const loadEvents = async () => {
+    const teamEvents = await getTeamSchedule(team.id);
     setEvents(teamEvents);
   };
 
@@ -62,34 +62,26 @@ const CoachSchedule = ({ user, team }) => {
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   };
 
-  const handleCreateEvent = () => {
+  const handleCreateEvent = async () => {
     if (!newEvent.title || !newEvent.date || !newEvent.time) return;
 
-    createScheduleEvent(user.id, team.id, {
+    await createScheduleEvent(user.id, team.id, {
       title: newEvent.title,
       type: newEvent.type,
-      date: newEvent.date, // Already YYYY-MM-DD format
+      date: newEvent.date,
       time: newEvent.time,
       duration: newEvent.duration,
       location: newEvent.location,
       notes: newEvent.notes
     });
 
-    setNewEvent({
-      title: '',
-      type: 'practice',
-      date: '',
-      time: '',
-      duration: 60,
-      location: '',
-      notes: ''
-    });
+    setNewEvent({ title: '', type: 'practice', date: '', time: '', duration: 60, location: '', notes: '' });
     setShowModal(false);
     loadEvents();
   };
 
-  const handleDeleteEvent = (eventId) => {
-    deleteScheduleEvent(eventId);
+  const handleDeleteEvent = async (eventId) => {
+    await deleteScheduleEvent(eventId);
     setDeleteConfirmId(null);
     loadEvents();
   };

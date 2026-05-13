@@ -1,23 +1,55 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getTeamPlayers, removePlayerFromTeam, getPlayerStats, updatePlayerPosition, getUser } from '../../data/database';
+import {
+  getTeamPlayers,
+  removePlayerFromTeam,
+  getPlayerStats,
+  updatePlayerPosition,
+  getUser
+} from '../../data/supabaseDb';
 
 const POSITIONS = ['Point Guard', 'Shooting Guard', 'Small Forward', 'Power Forward', 'Center'];
 
 const CoachRoster = ({ user, team, refreshTeam }) => {
+  const [players, setPlayers] = useState([]);
+  const [playerStatsMap, setPlayerStatsMap] = useState({});
+  const [blockedUsersMap, setBlockedUsersMap] = useState({});
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(null);
   const [editingPosition, setEditingPosition] = useState(false);
   const [tempPosition, setTempPosition] = useState('');
   const [showBlocked, setShowBlocked] = useState(false);
 
-  const players = team ? getTeamPlayers(team.id) : [];
+  const loadData = async () => {
+    if (!team) return;
+    const ps = await getTeamPlayers(team.id);
+    setPlayers(ps);
 
-  const handleRemovePlayer = (playerId) => {
-    removePlayerFromTeam(team.id, playerId);
+    const statsMap = {};
+    await Promise.all(ps.map(async (p) => {
+      statsMap[p.id] = await getPlayerStats(p.id);
+    }));
+    setPlayerStatsMap(statsMap);
+
+    if (team.blockedPlayerIds?.length > 0) {
+      const usersMap = {};
+      await Promise.all(team.blockedPlayerIds.map(async (id) => {
+        usersMap[id] = await getUser(id);
+      }));
+      setBlockedUsersMap(usersMap);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [team?.id]);
+
+  const handleRemovePlayer = async (playerId) => {
+    await removePlayerFromTeam(team.id, playerId);
     refreshTeam();
     setShowRemoveConfirm(null);
     setSelectedPlayer(null);
+    loadData();
   };
 
   const handleEditPosition = () => {
@@ -25,13 +57,13 @@ const CoachRoster = ({ user, team, refreshTeam }) => {
     setEditingPosition(true);
   };
 
-  const handleSavePosition = () => {
+  const handleSavePosition = async () => {
     if (selectedPlayer) {
-      updatePlayerPosition(selectedPlayer.id, tempPosition);
-      // Update selected player in state
+      await updatePlayerPosition(selectedPlayer.id, tempPosition);
       setSelectedPlayer({ ...selectedPlayer, position: tempPosition });
       setEditingPosition(false);
       refreshTeam();
+      loadData();
     }
   };
 
@@ -53,20 +85,18 @@ const CoachRoster = ({ user, team, refreshTeam }) => {
 
   return (
     <div className="p-4 md:p-6 space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Team Roster</h1>
           <p className="text-slate-400">{players.length} players on {team.name}</p>
         </div>
-        
+
         <div className="bg-slate-800 px-4 py-2 rounded-lg border border-slate-700">
           <p className="text-xs text-slate-400">Share this code:</p>
           <p className="font-mono font-bold text-orange-400">{team.joinCode}</p>
         </div>
       </div>
 
-      {/* Players Grid */}
       {players.length === 0 ? (
         <div className="bg-slate-800 rounded-xl border border-slate-700 p-12 text-center">
           <div className="w-20 h-20 bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -81,8 +111,7 @@ const CoachRoster = ({ user, team, refreshTeam }) => {
       ) : (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {players.map((player) => {
-            const stats = getPlayerStats(player.id);
-            
+            const stats = playerStatsMap[player.id] || { totalLogs: 0, shooting: { percentage: null }, completionRate: 0 };
             return (
               <motion.div
                 key={player.id}
@@ -111,7 +140,7 @@ const CoachRoster = ({ user, team, refreshTeam }) => {
                   </div>
                   <div className="bg-slate-700/50 rounded-lg p-2">
                     <p className="text-lg font-bold text-white">
-                      {stats.shooting.percentage || '--'}%
+                      {stats.shooting.percentage ?? '--'}%
                     </p>
                     <p className="text-xs text-slate-400">Shooting</p>
                   </div>
@@ -126,7 +155,6 @@ const CoachRoster = ({ user, team, refreshTeam }) => {
         </div>
       )}
 
-      {/* Blocked Players */}
       {(team.blockedPlayerIds?.length > 0) && (
         <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
           <button
@@ -149,7 +177,7 @@ const CoachRoster = ({ user, team, refreshTeam }) => {
           {showBlocked && (
             <div className="border-t border-slate-700 divide-y divide-slate-700">
               {team.blockedPlayerIds.map((blockedId) => {
-                const blockedUser = getUser(blockedId);
+                const blockedUser = blockedUsersMap[blockedId];
                 return (
                   <div key={blockedId} className="flex items-center justify-between px-4 py-3">
                     <div className="flex items-center space-x-3">
@@ -171,7 +199,6 @@ const CoachRoster = ({ user, team, refreshTeam }) => {
         </div>
       )}
 
-      {/* Player Detail Modal */}
       <AnimatePresence>
         {selectedPlayer && (
           <motion.div
@@ -179,10 +206,7 @@ const CoachRoster = ({ user, team, refreshTeam }) => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50"
-            onClick={() => {
-              setSelectedPlayer(null);
-              setEditingPosition(false);
-            }}
+            onClick={() => { setSelectedPlayer(null); setEditingPosition(false); }}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
@@ -191,7 +215,6 @@ const CoachRoster = ({ user, team, refreshTeam }) => {
               className="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-md overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Header */}
               <div className="bg-gradient-to-r from-orange-500 to-orange-600 p-6">
                 <div className="flex items-center space-x-4">
                   <div className="w-20 h-20 bg-white/20 rounded-xl flex items-center justify-center">
@@ -201,8 +224,7 @@ const CoachRoster = ({ user, team, refreshTeam }) => {
                   </div>
                   <div className="flex-1">
                     <h2 className="text-2xl font-bold text-white">{selectedPlayer.name}</h2>
-                    
-                    {/* Position - Editable */}
+
                     {editingPosition ? (
                       <div className="mt-2 flex items-center space-x-2">
                         <select
@@ -215,18 +237,12 @@ const CoachRoster = ({ user, team, refreshTeam }) => {
                             <option key={pos} value={pos} className="text-slate-900">{pos}</option>
                           ))}
                         </select>
-                        <button
-                          onClick={handleSavePosition}
-                          className="p-2 bg-white/20 rounded-lg hover:bg-white/30"
-                        >
+                        <button onClick={handleSavePosition} className="p-2 bg-white/20 rounded-lg hover:bg-white/30">
                           <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                           </svg>
                         </button>
-                        <button
-                          onClick={handleCancelEdit}
-                          className="p-2 bg-white/20 rounded-lg hover:bg-white/30"
-                        >
+                        <button onClick={handleCancelEdit} className="p-2 bg-white/20 rounded-lg hover:bg-white/30">
                           <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                           </svg>
@@ -235,14 +251,10 @@ const CoachRoster = ({ user, team, refreshTeam }) => {
                     ) : (
                       <div className="flex items-center space-x-2">
                         <p className="text-white/80">
-                          {selectedPlayer.position || 'No position'} 
+                          {selectedPlayer.position || 'No position'}
                           {selectedPlayer.age && ` • ${selectedPlayer.age} years old`}
                         </p>
-                        <button
-                          onClick={handleEditPosition}
-                          className="p-1 hover:bg-white/20 rounded"
-                          title="Edit position"
-                        >
+                        <button onClick={handleEditPosition} className="p-1 hover:bg-white/20 rounded" title="Edit position">
                           <svg className="w-4 h-4 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                           </svg>
@@ -253,10 +265,9 @@ const CoachRoster = ({ user, team, refreshTeam }) => {
                 </div>
               </div>
 
-              {/* Stats */}
               <div className="p-6">
                 {(() => {
-                  const stats = getPlayerStats(selectedPlayer.id);
+                  const stats = playerStatsMap[selectedPlayer.id] || { totalLogs: 0, completionRate: 0, shooting: { percentage: null, makes: 0, attempts: 0 } };
                   return (
                     <div className="grid grid-cols-2 gap-4 mb-6">
                       <div className="bg-slate-700/50 rounded-xl p-4 text-center">
@@ -269,7 +280,7 @@ const CoachRoster = ({ user, team, refreshTeam }) => {
                       </div>
                       <div className="bg-slate-700/50 rounded-xl p-4 text-center">
                         <p className="text-2xl font-bold text-white">
-                          {stats.shooting.percentage || '--'}%
+                          {stats.shooting.percentage ?? '--'}%
                         </p>
                         <p className="text-sm text-slate-400">Shooting %</p>
                       </div>
@@ -283,13 +294,9 @@ const CoachRoster = ({ user, team, refreshTeam }) => {
                   );
                 })()}
 
-                {/* Actions */}
                 <div className="space-y-3">
                   <button
-                    onClick={() => {
-                      setSelectedPlayer(null);
-                      setEditingPosition(false);
-                    }}
+                    onClick={() => { setSelectedPlayer(null); setEditingPosition(false); }}
                     className="w-full p-3 bg-slate-700 text-white rounded-xl font-medium hover:bg-slate-600 transition-colors"
                   >
                     Close
@@ -307,7 +314,6 @@ const CoachRoster = ({ user, team, refreshTeam }) => {
         )}
       </AnimatePresence>
 
-      {/* Remove Confirmation */}
       <AnimatePresence>
         {showRemoveConfirm && (
           <motion.div

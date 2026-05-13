@@ -1,7 +1,4 @@
-// Pace AI - Basketball Training Intelligence
-// Analyzes player data and generates recommendations for coaches
-
-import { getPlayerLogs, getPlayerStats, getDrill, getWorkout, getAllDrills } from '../data/database';
+import { getAllDrills } from '../data/drillLibrary';
 
 class PaceAI {
   constructor() {
@@ -15,142 +12,12 @@ class PaceAI {
     };
   }
 
-  analyzePlayer(playerId, teamId, options = {}) {
-    const recommendations = [];
-    const stats = getPlayerStats(playerId, options);
-    const logs = getPlayerLogs(playerId, options);
-
-    if (logs.length < this.thresholds.minLogsForAnalysis) {
-      return [];
-    }
-
-    const shootingRecs = this.analyzeShootingPerformance(playerId, logs, stats);
-    recommendations.push(...shootingRecs);
-
-    const completionRecs = this.analyzeCompletionRate(playerId, stats);
-    recommendations.push(...completionRecs);
-
-    const trendRecs = this.analyzeTrends(playerId, logs);
-    recommendations.push(...trendRecs);
-
-    return recommendations.map(rec => ({ ...rec, teamId, playerId }));
-  }
-
-  analyzeShootingPerformance(playerId, logs, stats) {
-    const recommendations = [];
-    const { shooting } = stats;
-
-    if (shooting.attempts === 0) return recommendations;
-
-    if (shooting.percentage < this.thresholds.shootingConcern) {
-      recommendations.push({
-        type: 'concern',
-        category: 'shooting',
-        title: 'Shooting Percentage Below Target',
-        description: `Overall shooting is at ${shooting.percentage}% (${shooting.makes}/${shooting.attempts}). Consider focusing on form work.`,
-        suggestedActions: [
-          'Assign form shooting drills',
-          'Review shooting mechanics',
-          'Reduce shooting distance temporarily',
-          'Focus on free throw consistency'
-        ],
-        dataPoints: { percentage: shooting.percentage, makes: shooting.makes, attempts: shooting.attempts }
-      });
-    }
-
-    return recommendations;
-  }
-
-  analyzeCompletionRate(playerId, stats) {
-    const recommendations = [];
-
-    if (stats.completionRate < this.thresholds.completionConcern) {
-      recommendations.push({
-        type: 'concern',
-        category: 'engagement',
-        title: 'Low Assignment Completion Rate',
-        description: `Only ${stats.completionRate}% of assigned work is being completed.`,
-        suggestedActions: [
-          'Check in with player about workload',
-          'Consider reducing assignment volume',
-          'Discuss barriers to completion'
-        ],
-        dataPoints: { completionRate: stats.completionRate, totalLogs: stats.totalLogs }
-      });
-    }
-
-    return recommendations;
-  }
-
-  analyzeTrends(playerId, logs) {
-    const recommendations = [];
-    if (logs.length < 6) return recommendations;
-
-    const midpoint = Math.floor(logs.length / 2);
-    const recentLogs = logs.slice(0, midpoint);
-    const olderLogs = logs.slice(midpoint);
-
-    const recentShooting = this.calculateShootingStats(recentLogs);
-    const olderShooting = this.calculateShootingStats(olderLogs);
-
-    if (recentShooting.attempts > 10 && olderShooting.attempts > 10) {
-      const change = recentShooting.percentage - olderShooting.percentage;
-
-      if (change <= -this.thresholds.significantDrop) {
-        recommendations.push({
-          type: 'concern',
-          category: 'shooting',
-          title: 'Shooting Performance Declining',
-          description: `Shooting dropped from ${olderShooting.percentage}% to ${recentShooting.percentage}%.`,
-          suggestedActions: ['Review practice footage', 'Check for fatigue', 'Return to form work'],
-          dataPoints: { previousPercentage: olderShooting.percentage, currentPercentage: recentShooting.percentage, change }
-        });
-      } else if (change >= this.thresholds.significantImprovement) {
-        recommendations.push({
-          type: 'achievement',
-          category: 'shooting',
-          title: 'Shooting Improvement Detected',
-          description: `Shooting improved from ${olderShooting.percentage}% to ${recentShooting.percentage}%!`,
-          suggestedActions: ['Acknowledge improvement', 'Consider increasing difficulty'],
-          dataPoints: { previousPercentage: olderShooting.percentage, currentPercentage: recentShooting.percentage, change }
-        });
-      }
-    }
-
-    return recommendations;
-  }
-
-  analyzeTeam(team, options = {}) {
-    const recommendations = [];
-    
-    team.playerIds.forEach(playerId => {
-      const playerRecs = this.analyzePlayer(playerId, team.id, options);
-      recommendations.push(...playerRecs);
-    });
-
-    return recommendations;
-  }
-
-  calculateShootingStats(logs) {
-    const shootingLogs = logs.filter(l => l.makes !== undefined && l.attempts !== undefined);
-    const makes = shootingLogs.reduce((sum, l) => sum + l.makes, 0);
-    const attempts = shootingLogs.reduce((sum, l) => sum + l.attempts, 0);
-    
-    return {
-      makes,
-      attempts,
-      percentage: attempts > 0 ? Math.round((makes / attempts) * 100) : 0
-    };
-  }
-
-  // Generate training plan from goal
   generateTrainingPlan(goal, userProfile) {
     const { description, timeframe, daysPerWeek = 3, minutesPerDay = 45 } = goal;
     const weeks = this.parseTimeframeToWeeks(timeframe);
     const category = this.categorizeGoal(description);
     const allDrills = getAllDrills();
-    
-    // Select drills based on category
+
     const relevantDrills = allDrills.filter(d => {
       if (category === 'shooting') return d.category === 'shooting';
       if (category === 'ball-handling') return d.category === 'ball-handling';

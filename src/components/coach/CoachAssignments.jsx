@@ -1,24 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  getTeamAssignments, 
-  createAssignment, 
-  getAllDrills, 
-  getAllWorkouts,
+import { getAllDrills, getAllWorkouts } from '../../data/drillLibrary';
+import {
+  getTeamAssignments,
+  createAssignment,
   getTeamPlayers,
   deleteAssignment,
   getAssignmentLogs
-} from '../../data/database';
+} from '../../data/supabaseDb';
 
 const CoachAssignments = ({ user, team, refreshTeam }) => {
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [assignments, setAssignments] = useState([]);
+  const [players, setPlayers] = useState([]);
+  const [assignmentLogsMap, setAssignmentLogsMap] = useState({});
   const [newAssignment, setNewAssignment] = useState({
     title: '',
     description: '',
     type: 'drill',
     items: [],
     assignedTo: 'team',
-    assignmentMode: 'team', // 'team', 'position', 'individual'
+    assignmentMode: 'team',
     selectedPositions: [],
     selectedPlayers: [],
     dueDate: ''
@@ -26,10 +28,29 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
 
-  const assignments = team ? getTeamAssignments(team.id) : [];
   const allDrills = getAllDrills();
   const allWorkouts = getAllWorkouts();
-  const players = team ? getTeamPlayers(team.id) : [];
+
+  const loadData = async () => {
+    if (!team) return;
+    const [assns, ps] = await Promise.all([
+      getTeamAssignments(team.id),
+      getTeamPlayers(team.id)
+    ]);
+    setAssignments(assns);
+    setPlayers(ps);
+
+    const logsMap = {};
+    await Promise.all(assns.map(async (a) => {
+      const logs = await getAssignmentLogs(a.id);
+      logsMap[a.id] = logs.length;
+    }));
+    setAssignmentLogsMap(logsMap);
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [team?.id]);
 
   const itemsToShow = newAssignment.type === 'drill' ? allDrills : allWorkouts;
   const filteredItems = itemsToShow.filter(item => {
@@ -51,43 +72,33 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
     return newAssignment.selectedPlayers;
   };
 
-  const handleCreateAssignment = () => {
-    if (!newAssignment.title || newAssignment.items.length === 0 || !newAssignment.dueDate) {
-      return;
-    }
+  const handleCreateAssignment = async () => {
+    if (!newAssignment.title || newAssignment.items.length === 0 || !newAssignment.dueDate) return;
 
     const assignedTo = getAssignedPlayers();
-
-    createAssignment(user.id, team.id, {
+    await createAssignment(user.id, team.id, {
       title: newAssignment.title,
       description: newAssignment.description,
       type: newAssignment.type,
       items: newAssignment.items,
       assignedTo,
-      dueDate: newAssignment.dueDate // Store as YYYY-MM-DD string, not Date object
+      dueDate: newAssignment.dueDate
     });
 
     setNewAssignment({
-      title: '',
-      description: '',
-      type: 'drill',
-      items: [],
-      assignedTo: 'team',
-      assignmentMode: 'team',
-      selectedPositions: [],
-      selectedPlayers: [],
-      dueDate: ''
+      title: '', description: '', type: 'drill', items: [],
+      assignedTo: 'team', assignmentMode: 'team',
+      selectedPositions: [], selectedPlayers: [], dueDate: ''
     });
     setShowCreateModal(false);
+    await loadData();
     refreshTeam();
   };
 
   const toggleItem = (itemId) => {
     setNewAssignment(prev => ({
       ...prev,
-      items: prev.items.includes(itemId)
-        ? prev.items.filter(id => id !== itemId)
-        : [...prev.items, itemId]
+      items: prev.items.includes(itemId) ? prev.items.filter(id => id !== itemId) : [...prev.items, itemId]
     }));
   };
 
@@ -115,9 +126,7 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
       const assignedPlayers = assignment.assignedTo
         .map(id => players.find(p => p.id === id))
         .filter(Boolean);
-      if (assignedPlayers.length <= 2) {
-        return assignedPlayers.map(p => p.name).join(', ');
-      }
+      if (assignedPlayers.length <= 2) return assignedPlayers.map(p => p.name).join(', ');
       return `${assignedPlayers.length} players`;
     }
     return 'Unknown';
@@ -136,7 +145,6 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
 
   return (
     <div className="p-4 md:p-6 space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Assignments</h1>
@@ -151,13 +159,9 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
         </button>
       </div>
 
-      {/* Quick assign buttons - AI Suggested removed */}
       <div className="grid grid-cols-3 gap-3">
         <button
-          onClick={() => {
-            setNewAssignment(prev => ({ ...prev, assignmentMode: 'team' }));
-            setShowCreateModal(true);
-          }}
+          onClick={() => { setNewAssignment(prev => ({ ...prev, assignmentMode: 'team' })); setShowCreateModal(true); }}
           className="p-4 bg-slate-800 border border-slate-700 rounded-xl hover:border-orange-500 transition-colors text-left"
         >
           <span className="text-2xl">👥</span>
@@ -165,10 +169,7 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
           <p className="text-xs text-slate-400">Assign to everyone</p>
         </button>
         <button
-          onClick={() => {
-            setNewAssignment(prev => ({ ...prev, assignmentMode: 'position' }));
-            setShowCreateModal(true);
-          }}
+          onClick={() => { setNewAssignment(prev => ({ ...prev, assignmentMode: 'position' })); setShowCreateModal(true); }}
           className="p-4 bg-slate-800 border border-slate-700 rounded-xl hover:border-orange-500 transition-colors text-left"
         >
           <span className="text-2xl">🏀</span>
@@ -176,10 +177,7 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
           <p className="text-xs text-slate-400">Guards, forwards, centers</p>
         </button>
         <button
-          onClick={() => {
-            setNewAssignment(prev => ({ ...prev, assignmentMode: 'individual' }));
-            setShowCreateModal(true);
-          }}
+          onClick={() => { setNewAssignment(prev => ({ ...prev, assignmentMode: 'individual' })); setShowCreateModal(true); }}
           className="p-4 bg-slate-800 border border-slate-700 rounded-xl hover:border-orange-500 transition-colors text-left"
         >
           <span className="text-2xl">👤</span>
@@ -188,7 +186,6 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
         </button>
       </div>
 
-      {/* Assignments List */}
       {assignments.length === 0 ? (
         <div className="bg-slate-800 rounded-xl border border-slate-700 p-12 text-center">
           <div className="w-20 h-20 bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -200,7 +197,6 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
       ) : (
         <div className="space-y-4">
           {assignments.map((assignment) => {
-            // Parse date as local to avoid timezone issues
             const parseLocalDate = (dateStr) => {
               if (!dateStr) return new Date();
               if (typeof dateStr === 'string' && dateStr.includes('-')) {
@@ -210,15 +206,15 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
               return new Date(dateStr);
             };
             const dueDate = parseLocalDate(assignment.dueDate);
-            const isPast = dueDate < new Date(new Date().setHours(0,0,0,0));
-            const itemList = assignment.type === 'drill' 
+            const isPast = dueDate < new Date(new Date().setHours(0, 0, 0, 0));
+            const itemList = assignment.type === 'drill'
               ? assignment.items.map(id => allDrills.find(d => d.id === id)).filter(Boolean)
               : assignment.items.map(id => allWorkouts.find(w => w.id === id)).filter(Boolean);
-            const logs = getAssignmentLogs(assignment.id);
+            const logsCount = assignmentLogsMap[assignment.id] ?? 0;
 
             return (
-              <div 
-                key={assignment.id} 
+              <div
+                key={assignment.id}
                 className={`bg-slate-800 rounded-xl border ${isPast ? 'border-slate-700 opacity-60' : 'border-slate-700'} overflow-hidden`}
               >
                 <div className="p-4">
@@ -227,9 +223,7 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
                       <div className="flex items-center space-x-2 mb-1">
                         <h3 className="font-semibold text-white text-lg">{assignment.title}</h3>
                         <span className={`px-2 py-0.5 text-xs rounded-full ${
-                          assignment.assignedTo === 'team' 
-                            ? 'bg-blue-500/20 text-blue-400'
-                            : 'bg-purple-500/20 text-purple-400'
+                          assignment.assignedTo === 'team' ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400'
                         }`}>
                           {getAssignedToLabel(assignment)}
                         </span>
@@ -240,16 +234,12 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
                     </div>
                     <div className="flex items-center space-x-2">
                       <span className={`px-3 py-1 text-sm rounded-full ${
-                        assignment.type === 'drill' ? 'bg-blue-500/20 text-blue-400' :
-                        'bg-purple-500/20 text-purple-400'
+                        assignment.type === 'drill' ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400'
                       }`}>
                         {assignment.type}
                       </span>
                       <button
-                        onClick={() => {
-                          deleteAssignment(assignment.id);
-                          refreshTeam();
-                        }}
+                        onClick={async () => { await deleteAssignment(assignment.id); await loadData(); refreshTeam(); }}
                         className="p-2 text-slate-400 hover:text-red-400 transition-colors"
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -268,9 +258,7 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
                   </div>
 
                   <div className="mt-4 flex items-center justify-between text-sm">
-                    <span className="text-slate-400">
-                      {logs.length} logs submitted
-                    </span>
+                    <span className="text-slate-400">{logsCount} logs submitted</span>
                     <span className={isPast ? 'text-red-400' : 'text-slate-400'}>
                       Due: {dueDate.toLocaleDateString()}
                     </span>
@@ -282,7 +270,6 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
         </div>
       )}
 
-      {/* Create Assignment Modal */}
       <AnimatePresence>
         {showCreateModal && (
           <motion.div
@@ -299,22 +286,16 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
               className="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Header */}
               <div className="p-4 border-b border-slate-700 flex items-center justify-between">
                 <h2 className="text-xl font-bold text-white">Create Assignment</h2>
-                <button
-                  onClick={() => setShowCreateModal(false)}
-                  className="p-2 text-slate-400 hover:text-white transition-colors"
-                >
+                <button onClick={() => setShowCreateModal(false)} className="p-2 text-slate-400 hover:text-white transition-colors">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               </div>
 
-              {/* Content */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {/* Title */}
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">Title *</label>
                   <input
@@ -326,7 +307,6 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
                   />
                 </div>
 
-                {/* Description */}
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">Description</label>
                   <textarea
@@ -338,44 +318,23 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
                   />
                 </div>
 
-                {/* Assignment Mode */}
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">Assign To</label>
                   <div className="grid grid-cols-3 gap-2">
-                    <button
-                      onClick={() => setNewAssignment(prev => ({ ...prev, assignmentMode: 'team' }))}
-                      className={`p-3 rounded-xl font-medium transition-colors ${
-                        newAssignment.assignmentMode === 'team'
-                          ? 'bg-orange-500 text-white'
-                          : 'bg-slate-700 text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      👥 Team
-                    </button>
-                    <button
-                      onClick={() => setNewAssignment(prev => ({ ...prev, assignmentMode: 'position' }))}
-                      className={`p-3 rounded-xl font-medium transition-colors ${
-                        newAssignment.assignmentMode === 'position'
-                          ? 'bg-orange-500 text-white'
-                          : 'bg-slate-700 text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      🏀 Position
-                    </button>
-                    <button
-                      onClick={() => setNewAssignment(prev => ({ ...prev, assignmentMode: 'individual' }))}
-                      className={`p-3 rounded-xl font-medium transition-colors ${
-                        newAssignment.assignmentMode === 'individual'
-                          ? 'bg-orange-500 text-white'
-                          : 'bg-slate-700 text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      👤 Individual
-                    </button>
+                    {['team', 'position', 'individual'].map((mode) => (
+                      <button
+                        key={mode}
+                        onClick={() => setNewAssignment(prev => ({ ...prev, assignmentMode: mode }))}
+                        className={`p-3 rounded-xl font-medium transition-colors ${
+                          newAssignment.assignmentMode === mode ? 'bg-orange-500 text-white' : 'bg-slate-700 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        {mode === 'team' ? '👥 Team' : mode === 'position' ? '🏀 Position' : '👤 Individual'}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
-                {/* Position Selection */}
                 {newAssignment.assignmentMode === 'position' && (
                   <div className="bg-slate-900 rounded-xl p-3">
                     <p className="text-sm text-slate-400 mb-2">Select positions:</p>
@@ -387,9 +346,7 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
                             key={pos}
                             onClick={() => togglePosition(pos)}
                             className={`px-4 py-2 rounded-lg transition-colors ${
-                              newAssignment.selectedPositions.includes(pos)
-                                ? 'bg-orange-500 text-white'
-                                : 'bg-slate-700 text-slate-400 hover:text-white'
+                              newAssignment.selectedPositions.includes(pos) ? 'bg-orange-500 text-white' : 'bg-slate-700 text-slate-400 hover:text-white'
                             }`}
                           >
                             {pos} ({playersInPosition.length})
@@ -400,7 +357,6 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
                   </div>
                 )}
 
-                {/* Individual Selection */}
                 {newAssignment.assignmentMode === 'individual' && (
                   <div className="bg-slate-900 rounded-xl p-3 max-h-40 overflow-y-auto">
                     <p className="text-sm text-slate-400 mb-2">Select players:</p>
@@ -423,16 +379,13 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
                   </div>
                 )}
 
-                {/* Type Toggle */}
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">Type</label>
                   <div className="flex space-x-2">
                     <button
                       onClick={() => setNewAssignment(prev => ({ ...prev, type: 'drill', items: [] }))}
                       className={`flex-1 p-3 rounded-xl font-medium transition-colors ${
-                        newAssignment.type === 'drill'
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-slate-700 text-slate-400 hover:text-white'
+                        newAssignment.type === 'drill' ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-400 hover:text-white'
                       }`}
                     >
                       🏀 Skill Drills
@@ -440,9 +393,7 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
                     <button
                       onClick={() => setNewAssignment(prev => ({ ...prev, type: 'workout', items: [] }))}
                       className={`flex-1 p-3 rounded-xl font-medium transition-colors ${
-                        newAssignment.type === 'workout'
-                          ? 'bg-purple-500 text-white'
-                          : 'bg-slate-700 text-slate-400 hover:text-white'
+                        newAssignment.type === 'workout' ? 'bg-purple-500 text-white' : 'bg-slate-700 text-slate-400 hover:text-white'
                       }`}
                     >
                       🏋️ Workouts
@@ -450,12 +401,11 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
                   </div>
                 </div>
 
-                {/* Item Selection */}
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">
                     Select {newAssignment.type === 'drill' ? 'Drills' : 'Workouts'} *
                   </label>
-                  
+
                   <div className="flex space-x-2 mb-3">
                     <input
                       type="text"
@@ -499,13 +449,12 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
                       </button>
                     ))}
                   </div>
-                  
+
                   {newAssignment.items.length > 0 && (
                     <p className="text-sm text-orange-400 mt-2">{newAssignment.items.length} selected</p>
                   )}
                 </div>
 
-                {/* Due Date */}
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">Due Date *</label>
                   <input
@@ -517,7 +466,6 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
                 </div>
               </div>
 
-              {/* Footer */}
               <div className="p-4 border-t border-slate-700">
                 <button
                   onClick={handleCreateAssignment}

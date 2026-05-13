@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { getTeamMessages } from '../../data/database';
+import { getTeamMessages } from '../../data/supabaseDb';
 
 const Navigation = ({ user, team, currentView, setCurrentView, onLogout, isCoach }) => {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
@@ -12,22 +12,19 @@ const Navigation = ({ user, team, currentView, setCurrentView, onLogout, isCoach
 
   // Check for unread messages
   useEffect(() => {
-    const checkUnread = () => {
+    const checkUnread = async () => {
       if (team && user) {
-        const messages = getTeamMessages(team.id);
-        // Count messages not sent by current user that came after last viewed
+        const messages = await getTeamMessages(team.id);
         const unread = messages.filter(m => {
           const msgDate = new Date(m.createdAt);
-          const notFromMe = m.senderId !== user.id;
-          const isNew = msgDate > lastViewedChat;
-          return notFromMe && isNew;
+          return m.senderId !== user.id && msgDate > lastViewedChat;
         });
         setUnreadCount(unread.length);
       }
     };
 
     checkUnread();
-    const interval = setInterval(checkUnread, 3000);
+    const interval = setInterval(checkUnread, 5000);
     return () => clearInterval(interval);
   }, [team, user, lastViewedChat]);
 

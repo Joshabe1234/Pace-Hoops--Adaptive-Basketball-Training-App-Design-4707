@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
-  getTeam,
   getTeamPlayers,
   getTeamAssignments,
   getAllTeamAssignments,
@@ -9,35 +8,45 @@ import {
   getTeamMessages,
   getUnreadDMCount,
   getTeamInjuries
-} from '../../data/database';
+} from '../../data/supabaseDb';
 
 const CoachDashboard = ({ user, team, onNavigate }) => {
   const [stats, setStats] = useState(null);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [players, setPlayers] = useState([]);
+  const [activeAssignments, setActiveAssignments] = useState([]);
+  const [allAssignments, setAllAssignments] = useState([]);
+  const [messages, setMessages] = useState([]);
+  const [dmUnread, setDmUnread] = useState(0);
+  const [injuries, setInjuries] = useState([]);
   const [codeCopied, setCodeCopied] = useState(false);
 
-  useEffect(() => {
-    if (team) {
-      loadData();
-      const interval = setInterval(() => setRefreshKey(k => k + 1), 5000);
-      return () => clearInterval(interval);
-    }
-  }, [team?.id, refreshKey]);
-
-  const loadData = () => {
-    if (team) {
-      setStats(getTeamStats(team.id));
-    }
+  const loadData = async () => {
+    if (!team) return;
+    const [p, active, all, msgs, teamStats, inj, unread] = await Promise.all([
+      getTeamPlayers(team.id),
+      getTeamAssignments(team.id),
+      getAllTeamAssignments(team.id),
+      getTeamMessages(team.id),
+      getTeamStats(team.id),
+      getTeamInjuries(team.id),
+      getUnreadDMCount(user.id)
+    ]);
+    setPlayers(p);
+    setActiveAssignments(active);
+    setAllAssignments(all);
+    setMessages(msgs);
+    setStats(teamStats);
+    setInjuries(inj);
+    setDmUnread(unread);
   };
 
-  const players = team ? getTeamPlayers(team.id) : [];
-  const activeAssignments = team ? getTeamAssignments(team.id) : [];
-  const allAssignments = team ? getAllTeamAssignments(team.id) : [];
-  const messages = team ? getTeamMessages(team.id) : [];
-  const dmUnread = getUnreadDMCount(user.id);
-  const injuries = team ? getTeamInjuries(team.id) : [];
+  useEffect(() => {
+    if (!team) return;
+    loadData();
+    const interval = setInterval(loadData, 5000);
+    return () => clearInterval(interval);
+  }, [team?.id]);
 
-  // Parse date string as local date (YYYY-MM-DD) to avoid timezone issues
   const parseLocalDate = (dateStr) => {
     if (!dateStr) return new Date();
     if (typeof dateStr === 'string' && dateStr.includes('-')) {
@@ -48,13 +57,12 @@ const CoachDashboard = ({ user, team, onNavigate }) => {
   };
 
   const formatDate = (dateStr) => {
-    return parseLocalDate(dateStr).toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric' 
+    return parseLocalDate(dateStr).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric'
     });
   };
 
-  // Get recent injuries (last 7 days)
   const recentInjuries = injuries.filter(i => {
     const injuryDate = new Date(i.date);
     const weekAgo = new Date();
@@ -62,19 +70,17 @@ const CoachDashboard = ({ user, team, onNavigate }) => {
     return injuryDate >= weekAgo;
   });
 
-  // Get past assignments (completed or past due, within last 7 days)
   const oneWeekAgo = new Date();
   oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-  
+
   const pastAssignments = allAssignments.filter(a => {
     const dueDate = parseLocalDate(a.dueDate);
-    const isPastDue = dueDate < new Date(new Date().setHours(0,0,0,0));
+    const isPastDue = dueDate < new Date(new Date().setHours(0, 0, 0, 0));
     const isWithinWeek = dueDate >= oneWeekAgo;
     const isInactive = a.status !== 'active' || isPastDue;
     return isInactive && isWithinWeek;
   });
 
-  // Recent messages (last 24h)
   const recentMessages = messages.filter(m => {
     const msgDate = new Date(m.createdAt);
     const oneDayAgo = new Date();
@@ -83,10 +89,7 @@ const CoachDashboard = ({ user, team, onNavigate }) => {
   });
 
   const handleAssignmentClick = (assignment) => {
-    // Navigate to analytics with the assignment selected
-    if (onNavigate) {
-      onNavigate('stats', { selectedAssignment: assignment });
-    }
+    if (onNavigate) onNavigate('stats', { selectedAssignment: assignment });
   };
 
   if (!team) {
@@ -113,13 +116,11 @@ const CoachDashboard = ({ user, team, onNavigate }) => {
 
   return (
     <div className="p-4 md:p-6 space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-white">Dashboard</h1>
         <p className="text-slate-400">{team.name}</p>
       </div>
 
-      {/* Quick Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -166,7 +167,6 @@ const CoachDashboard = ({ user, team, onNavigate }) => {
         </motion.div>
       </div>
 
-      {/* Team Code */}
       <div className="bg-gradient-to-r from-slate-800 to-slate-700 rounded-xl p-4 border border-slate-600">
         <div className="flex items-center justify-between">
           <div>
@@ -180,9 +180,7 @@ const CoachDashboard = ({ user, team, onNavigate }) => {
               setTimeout(() => setCodeCopied(false), 2000);
             }}
             className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
-              codeCopied
-                ? 'bg-green-500 text-white'
-                : 'bg-slate-600 hover:bg-slate-500 text-white'
+              codeCopied ? 'bg-green-500 text-white' : 'bg-slate-600 hover:bg-slate-500 text-white'
             }`}
           >
             {codeCopied ? 'Copied!' : 'Copy'}
@@ -191,7 +189,6 @@ const CoachDashboard = ({ user, team, onNavigate }) => {
         <p className="text-xs text-slate-500 mt-2">Share this code with your players</p>
       </div>
 
-      {/* Active Assignments - CLICKABLE */}
       <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
         <div className="p-4 border-b border-slate-700 flex items-center justify-between">
           <h3 className="font-semibold text-white">Active Assignments</h3>
@@ -242,7 +239,6 @@ const CoachDashboard = ({ user, team, onNavigate }) => {
         )}
       </div>
 
-      {/* Past Assignments Section */}
       {pastAssignments.length > 0 && (
         <div className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
           <div className="p-4 border-b border-slate-700 flex items-center justify-between">
@@ -263,9 +259,7 @@ const CoachDashboard = ({ user, team, onNavigate }) => {
                   </p>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <span className="text-xs text-slate-500 bg-slate-700/50 px-2 py-1 rounded-full">
-                    Past Due
-                  </span>
+                  <span className="text-xs text-slate-500 bg-slate-700/50 px-2 py-1 rounded-full">Past Due</span>
                   <svg className="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
@@ -279,9 +273,7 @@ const CoachDashboard = ({ user, team, onNavigate }) => {
         </div>
       )}
 
-      {/* Two Column Layout */}
       <div className="grid md:grid-cols-2 gap-6">
-        {/* Recent Activity */}
         <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
           <div className="p-4 border-b border-slate-700 flex items-center justify-between">
             <h3 className="font-semibold text-white">Team Chat</h3>
@@ -318,7 +310,6 @@ const CoachDashboard = ({ user, team, onNavigate }) => {
           </div>
         </div>
 
-        {/* Player Health Alerts */}
         <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
           <button
             onClick={() => onNavigate && onNavigate('health')}
@@ -338,22 +329,15 @@ const CoachDashboard = ({ user, team, onNavigate }) => {
                       <span className="text-xl">🚨</span>
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-white">{injury.player?.name || 'Unknown'}</p>
-                        <p className="text-xs text-red-400 mt-0.5">
-                          Injured during: {injury.drillName}
-                        </p>
                         {injury.injuryDescription && (
-                          <p className="text-xs text-slate-400 mt-1 truncate">
-                            "{injury.injuryDescription}"
-                          </p>
+                          <p className="text-xs text-slate-400 mt-1 truncate">"{injury.injuryDescription}"</p>
                         )}
                       </div>
                     </div>
                   </div>
                 ))}
                 {recentInjuries.length > 3 && (
-                  <p className="text-xs text-slate-500 text-center">
-                    +{recentInjuries.length - 3} more injury reports
-                  </p>
+                  <p className="text-xs text-slate-500 text-center">+{recentInjuries.length - 3} more injury reports</p>
                 )}
               </div>
             ) : (
@@ -366,7 +350,6 @@ const CoachDashboard = ({ user, team, onNavigate }) => {
         </div>
       </div>
 
-      {/* Quick Actions */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <button
           onClick={() => onNavigate && onNavigate('assignments')}

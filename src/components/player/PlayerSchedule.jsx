@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getTeamSchedule } from '../../data/database';
+import { getTeamSchedule } from '../../data/supabaseDb';
 
 const PlayerSchedule = ({ user, team }) => {
   const [events, setEvents] = useState([]);
@@ -15,8 +15,8 @@ const PlayerSchedule = ({ user, team }) => {
     }
   }, [team?.id]);
 
-  const loadEvents = () => {
-    const teamEvents = getTeamSchedule(team.id);
+  const loadEvents = async () => {
+    const teamEvents = await getTeamSchedule(team.id);
     setEvents(teamEvents);
   };
 

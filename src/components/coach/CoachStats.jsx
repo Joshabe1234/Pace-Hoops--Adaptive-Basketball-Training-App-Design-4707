@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  getTeamPlayers, 
-  getTeamAssignments,
-  getPlayerLogs,
-  getDrill,
-  getWorkout,
-  getAllDrills
-} from '../../data/database';
+import { getDrill, getWorkout, getAllDrills } from '../../data/drillLibrary';
+import {
+  getTeamPlayers,
+  getAllTeamAssignments,
+  getPlayerLogs
+} from '../../data/supabaseDb';
 
 const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
   const [activeTab, setActiveTab] = useState('team');
@@ -17,85 +15,83 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
   const [expandedDrill, setExpandedDrill] = useState(null);
   const [showAIRecommendations, setShowAIRecommendations] = useState(false);
 
-  const players = team ? getTeamPlayers(team.id) : [];
-  const allAssignments = team ? getTeamAssignments(team.id) : [];
-  const positions = ['Point Guard', 'Shooting Guard', 'Small Forward', 'Power Forward', 'Center'];
+  const [players, setPlayers] = useState([]);
+  const [allAssignments, setAllAssignments] = useState([]);
+  const [playerLogsMap, setPlayerLogsMap] = useState({});
 
-  // Handle initial assignment from dashboard navigation
-  useEffect(() => {
-    if (initialAssignment) {
-      setExpandedAssignment(initialAssignment.id);
-    }
-  }, [initialAssignment]);
+  const loadData = async () => {
+    if (!team) return;
+    const [ps, assns] = await Promise.all([
+      getTeamPlayers(team.id),
+      getAllTeamAssignments(team.id)
+    ]);
+    setPlayers(ps);
+    setAllAssignments(assns);
 
-  // Get players by position
-  const getPlayersByPosition = (position) => {
-    return players.filter(p => p.position === position);
+    const logsMap = {};
+    await Promise.all(ps.map(async (p) => {
+      logsMap[p.id] = await getPlayerLogs(p.id);
+    }));
+    setPlayerLogsMap(logsMap);
   };
 
-  // Check if an assignment was assigned to a specific position
+  useEffect(() => {
+    loadData();
+    const interval = setInterval(loadData, 10000);
+    return () => clearInterval(interval);
+  }, [team?.id]);
+
+  useEffect(() => {
+    if (initialAssignment) setExpandedAssignment(initialAssignment.id);
+  }, [initialAssignment]);
+
+  const positions = ['Point Guard', 'Shooting Guard', 'Small Forward', 'Power Forward', 'Center'];
+
+  const getPlayersByPosition = (position) => players.filter(p => p.position === position);
+
   const isAssignedToPosition = (assignment, position) => {
     if (assignment.assignedTo === 'team') return false;
     if (!Array.isArray(assignment.assignedTo)) return false;
-    
-    const positionPlayers = getPlayersByPosition(position);
-    const positionPlayerIds = positionPlayers.map(p => p.id);
-    
-    const assignedToThisPosition = assignment.assignedTo.some(id => positionPlayerIds.includes(id));
-    return assignedToThisPosition;
+    const positionPlayerIds = getPlayersByPosition(position).map(p => p.id);
+    return assignment.assignedTo.some(id => positionPlayerIds.includes(id));
   };
 
-  // Check if an assignment was assigned to a specific player
   const isAssignedToPlayer = (assignment, playerId) => {
     if (assignment.assignedTo === 'team') return true;
-    if (Array.isArray(assignment.assignedTo)) {
-      return assignment.assignedTo.includes(playerId);
-    }
+    if (Array.isArray(assignment.assignedTo)) return assignment.assignedTo.includes(playerId);
     return false;
   };
 
-  // Filter assignments based on view
   const getFilteredAssignments = () => {
-    if (activeTab === 'team') {
-      return allAssignments.filter(a => a.assignedTo === 'team');
-    } else if (activeTab === 'position') {
+    if (activeTab === 'team') return allAssignments.filter(a => a.assignedTo === 'team');
+    if (activeTab === 'position') {
       return allAssignments.filter(a => {
         if (a.assignedTo === 'team') return true;
-        if (isAssignedToPosition(a, selectedPosition)) return true;
-        return false;
+        return isAssignedToPosition(a, selectedPosition);
       });
-    } else if (activeTab === 'individual' && selectedPlayer) {
+    }
+    if (activeTab === 'individual' && selectedPlayer) {
       return allAssignments.filter(a => isAssignedToPlayer(a, selectedPlayer.id));
     }
     return [];
   };
 
-  // Get relevant players for stats calculation
   const getRelevantPlayers = () => {
-    if (activeTab === 'team') {
-      return players;
-    } else if (activeTab === 'position') {
-      return getPlayersByPosition(selectedPosition);
-    } else if (activeTab === 'individual' && selectedPlayer) {
-      return [selectedPlayer];
-    }
+    if (activeTab === 'team') return players;
+    if (activeTab === 'position') return getPlayersByPosition(selectedPosition);
+    if (activeTab === 'individual' && selectedPlayer) return [selectedPlayer];
     return [];
   };
 
-  // Calculate stats for a specific drill
   const getDrillStats = (drillId, assignmentId) => {
     const relevantPlayers = getRelevantPlayers();
-    
-    let totalMakes = 0;
-    let totalAttempts = 0;
-    let totalLogs = 0;
-    let totalDifficulty = 0;
-    let difficultyCount = 0;
+
+    let totalMakes = 0, totalAttempts = 0, totalLogs = 0, totalDifficulty = 0, difficultyCount = 0;
     let sorenessCount = { none: 0, mild: 0, moderate: 0, severe: 0 };
     const playerBreakdown = [];
 
     relevantPlayers.forEach(player => {
-      const playerLogs = getPlayerLogs(player.id).filter(
+      const playerLogs = (playerLogsMap[player.id] || []).filter(
         l => l.itemId === drillId && l.assignmentId === assignmentId
       );
 
@@ -109,55 +105,32 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
         totalLogs += playerLogs.length;
 
         playerLogs.forEach(l => {
-          if (l.difficulty) {
-            totalDifficulty += l.difficulty;
-            difficultyCount++;
-          }
-          if (l.soreness) {
-            sorenessCount[l.soreness] = (sorenessCount[l.soreness] || 0) + 1;
-          }
+          if (l.difficulty) { totalDifficulty += l.difficulty; difficultyCount++; }
+          if (l.soreness) sorenessCount[l.soreness] = (sorenessCount[l.soreness] || 0) + 1;
         });
 
-        playerBreakdown.push({
-          player,
-          logs: playerLogs.length,
-          makes: playerMakes,
-          attempts: playerAttempts,
-          percentage: playerPercentage
-        });
+        playerBreakdown.push({ player, logs: playerLogs.length, makes: playerMakes, attempts: playerAttempts, percentage: playerPercentage });
       }
     });
 
     return {
-      totalLogs,
-      makes: totalMakes,
-      attempts: totalAttempts,
+      totalLogs, makes: totalMakes, attempts: totalAttempts,
       percentage: totalAttempts > 0 ? Math.round((totalMakes / totalAttempts) * 100) : null,
       avgDifficulty: difficultyCount > 0 ? (totalDifficulty / difficultyCount).toFixed(1) : null,
-      soreness: sorenessCount,
-      playerBreakdown,
-      playersCompleted: playerBreakdown.length,
-      totalPlayers: relevantPlayers.length
+      soreness: sorenessCount, playerBreakdown,
+      playersCompleted: playerBreakdown.length, totalPlayers: relevantPlayers.length
     };
   };
 
-  // Calculate overall stats for current view
   const getOverallStats = () => {
     const relevantPlayers = getRelevantPlayers();
     const filteredAssignments = getFilteredAssignments();
-    
-    let totalLogs = 0;
-    let totalMakes = 0;
-    let totalAttempts = 0;
-
     const filteredAssignmentIds = filteredAssignments.map(a => a.id);
 
+    let totalLogs = 0, totalMakes = 0, totalAttempts = 0;
     relevantPlayers.forEach(player => {
-      const logs = getPlayerLogs(player.id).filter(l => 
-        filteredAssignmentIds.includes(l.assignmentId)
-      );
+      const logs = (playerLogsMap[player.id] || []).filter(l => filteredAssignmentIds.includes(l.assignmentId));
       totalLogs += logs.length;
-      
       logs.forEach(l => {
         if (l.makes !== undefined) totalMakes += l.makes;
         if (l.attempts !== undefined) totalAttempts += l.attempts;
@@ -165,93 +138,70 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
     });
 
     return {
-      playerCount: relevantPlayers.length,
-      totalLogs,
+      playerCount: relevantPlayers.length, totalLogs,
       shooting: {
-        makes: totalMakes,
-        attempts: totalAttempts,
+        makes: totalMakes, attempts: totalAttempts,
         percentage: totalAttempts > 0 ? Math.round((totalMakes / totalAttempts) * 100) : null
       },
       assignmentCount: filteredAssignments.length
     };
   };
 
-  // Generate AI recommendations based on team stats
   const generateAIRecommendations = () => {
-    const allDrills = getAllDrills();
+    const drills = getAllDrills();
     const recommendations = [];
-    
-    // Analyze team shooting
+
     const overallStats = getOverallStats();
     const shootingPct = overallStats.shooting.percentage;
-    
+
     if (shootingPct !== null && shootingPct < 50) {
       recommendations.push({
-        type: 'drill',
-        priority: 'high',
+        type: 'drill', priority: 'high',
         title: 'Focus on Form Shooting',
         description: `Team shooting is at ${shootingPct}%. Assign form shooting drills to improve fundamentals.`,
-        suggestedDrills: allDrills.filter(d => d.category === 'shooting').slice(0, 2)
+        suggestedDrills: drills.filter(d => d.category === 'shooting').slice(0, 2)
       });
     }
 
-    // Check for players with low completion
-    const lowCompletionPlayers = players.filter(p => {
-      const logs = getPlayerLogs(p.id);
-      return logs.length < 3;
-    });
-
+    const lowCompletionPlayers = players.filter(p => (playerLogsMap[p.id] || []).length < 3);
     if (lowCompletionPlayers.length > 0) {
       recommendations.push({
-        type: 'engagement',
-        priority: 'medium',
+        type: 'engagement', priority: 'medium',
         title: 'Low Engagement Alert',
         description: `${lowCompletionPlayers.length} player${lowCompletionPlayers.length > 1 ? 's have' : ' has'} completed fewer than 3 drills.`,
         players: lowCompletionPlayers
       });
     }
 
-    // Position-specific recommendations
     positions.forEach(pos => {
       const posPlayers = getPlayersByPosition(pos);
       if (posPlayers.length > 0) {
         let posMakes = 0, posAttempts = 0;
         posPlayers.forEach(p => {
-          const logs = getPlayerLogs(p.id);
-          logs.forEach(l => {
+          (playerLogsMap[p.id] || []).forEach(l => {
             if (l.makes !== undefined) posMakes += l.makes;
             if (l.attempts !== undefined) posAttempts += l.attempts;
           });
         });
         const posPct = posAttempts > 0 ? Math.round((posMakes / posAttempts) * 100) : null;
-        
         if (posPct !== null && posPct < 45) {
-          const categoryMap = {
-            'Point Guard': 'ball-handling',
-            'Shooting Guard': 'shooting',
-            'Small Forward': 'shooting',
-            'Power Forward': 'post',
-            'Center': 'post'
-          };
+          const categoryMap = { 'Point Guard': 'ball-handling', 'Shooting Guard': 'shooting', 'Small Forward': 'shooting', 'Power Forward': 'post', 'Center': 'post' };
           const category = categoryMap[pos] || 'shooting';
           recommendations.push({
-            type: 'position',
-            priority: 'medium',
+            type: 'position', priority: 'medium',
             title: `${pos} Development`,
             description: `${pos}s are shooting ${posPct}%. Consider targeted ${category} drills.`,
             position: pos,
-            suggestedDrills: allDrills.filter(d => d.category === category).slice(0, 2)
+            suggestedDrills: drills.filter(d => d.category === category).slice(0, 2)
           });
         }
       }
     });
 
-    // Workout balance check
     const hasWorkouts = allAssignments.some(a => a.type === 'workout');
     if (!hasWorkouts && allAssignments.length > 2) {
       recommendations.push({
-        type: 'balance',
-        priority: 'low',
+        type: 'balance', priority: 'low',
         title: 'Add Conditioning',
         description: 'All assignments are skill drills. Consider adding workouts for physical development.',
         suggestedDrills: []
@@ -259,8 +209,7 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
     }
 
     return recommendations.length > 0 ? recommendations : [{
-      type: 'success',
-      priority: 'low',
+      type: 'success', priority: 'low',
       title: 'Team on Track',
       description: 'No specific recommendations at this time. Keep up the good work!',
       suggestedDrills: []
@@ -271,10 +220,7 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
   const filteredAssignments = getFilteredAssignments();
   const aiRecommendations = generateAIRecommendations();
 
-  // Get item details (drill or workout)
-  const getItemDetails = (itemId, type) => {
-    return type === 'drill' ? getDrill(itemId) : getWorkout(itemId);
-  };
+  const getItemDetails = (itemId, type) => type === 'drill' ? getDrill(itemId) : getWorkout(itemId);
 
   if (!team) {
     return (
@@ -289,7 +235,6 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
 
   return (
     <div className="p-4 md:p-6 space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Analytics</h1>
@@ -298,9 +243,7 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
         <button
           onClick={() => setShowAIRecommendations(!showAIRecommendations)}
           className={`px-4 py-2 rounded-xl font-medium flex items-center space-x-2 transition-colors ${
-            showAIRecommendations 
-              ? 'bg-purple-500 text-white' 
-              : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'
+            showAIRecommendations ? 'bg-purple-500 text-white' : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'
           }`}
         >
           <span>🤖</span>
@@ -308,7 +251,6 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
         </button>
       </div>
 
-      {/* AI Recommendations Section */}
       <AnimatePresence>
         {showAIRecommendations && (
           <motion.div
@@ -320,22 +262,17 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
             <div className="bg-gradient-to-br from-purple-500/10 to-blue-500/10 rounded-xl border border-purple-500/30 p-4 space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-white flex items-center space-x-2">
-                  <span>🤖</span>
-                  <span>AI Recommendations</span>
+                  <span>🤖</span><span>AI Recommendations</span>
                 </h2>
                 <span className="text-xs text-slate-400">Based on team performance data</span>
               </div>
-              
               <div className="space-y-3">
                 {aiRecommendations.map((rec, idx) => (
-                  <div 
-                    key={idx}
-                    className={`p-4 rounded-lg border ${
-                      rec.priority === 'high' ? 'bg-red-500/10 border-red-500/30' :
-                      rec.priority === 'medium' ? 'bg-yellow-500/10 border-yellow-500/30' :
-                      'bg-slate-800/50 border-slate-700'
-                    }`}
-                  >
+                  <div key={idx} className={`p-4 rounded-lg border ${
+                    rec.priority === 'high' ? 'bg-red-500/10 border-red-500/30' :
+                    rec.priority === 'medium' ? 'bg-yellow-500/10 border-yellow-500/30' :
+                    'bg-slate-800/50 border-slate-700'
+                  }`}>
                     <div className="flex items-start justify-between">
                       <div>
                         <div className="flex items-center space-x-2">
@@ -352,25 +289,19 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
                         <p className="text-sm text-slate-400 mt-1">{rec.description}</p>
                       </div>
                     </div>
-                    
-                    {rec.suggestedDrills && rec.suggestedDrills.length > 0 && (
+                    {rec.suggestedDrills?.length > 0 && (
                       <div className="mt-3 flex flex-wrap gap-2">
                         <span className="text-xs text-slate-500">Suggested:</span>
                         {rec.suggestedDrills.map(drill => (
-                          <span key={drill.id} className="text-xs px-2 py-1 bg-slate-700 text-slate-300 rounded">
-                            {drill.name}
-                          </span>
+                          <span key={drill.id} className="text-xs px-2 py-1 bg-slate-700 text-slate-300 rounded">{drill.name}</span>
                         ))}
                       </div>
                     )}
-                    
-                    {rec.players && rec.players.length > 0 && (
+                    {rec.players?.length > 0 && (
                       <div className="mt-3 flex flex-wrap gap-2">
                         <span className="text-xs text-slate-500">Players:</span>
                         {rec.players.map(player => (
-                          <span key={player.id} className="text-xs px-2 py-1 bg-slate-700 text-slate-300 rounded">
-                            {player.name}
-                          </span>
+                          <span key={player.id} className="text-xs px-2 py-1 bg-slate-700 text-slate-300 rounded">{player.name}</span>
                         ))}
                       </div>
                     )}
@@ -382,41 +313,20 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
         )}
       </AnimatePresence>
 
-      {/* Tabs */}
       <div className="flex flex-wrap gap-2">
-        <button
-          onClick={() => { setActiveTab('team'); setExpandedAssignment(null); setExpandedDrill(null); }}
-          className={`px-4 py-2 rounded-xl font-medium transition-colors ${
-            activeTab === 'team'
-              ? 'bg-orange-500 text-white'
-              : 'bg-slate-800 text-slate-400 hover:text-white'
-          }`}
-        >
-          👥 Team Stats
-        </button>
-        <button
-          onClick={() => { setActiveTab('position'); setExpandedAssignment(null); setExpandedDrill(null); }}
-          className={`px-4 py-2 rounded-xl font-medium transition-colors ${
-            activeTab === 'position'
-              ? 'bg-orange-500 text-white'
-              : 'bg-slate-800 text-slate-400 hover:text-white'
-          }`}
-        >
-          🏀 By Position
-        </button>
-        <button
-          onClick={() => { setActiveTab('individual'); setExpandedAssignment(null); setExpandedDrill(null); }}
-          className={`px-4 py-2 rounded-xl font-medium transition-colors ${
-            activeTab === 'individual'
-              ? 'bg-orange-500 text-white'
-              : 'bg-slate-800 text-slate-400 hover:text-white'
-          }`}
-        >
-          👤 Individual
-        </button>
+        {['team', 'position', 'individual'].map((tab) => (
+          <button
+            key={tab}
+            onClick={() => { setActiveTab(tab); setExpandedAssignment(null); setExpandedDrill(null); }}
+            className={`px-4 py-2 rounded-xl font-medium transition-colors ${
+              activeTab === tab ? 'bg-orange-500 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
+            }`}
+          >
+            {tab === 'team' ? '👥 Team Stats' : tab === 'position' ? '🏀 By Position' : '👤 Individual'}
+          </button>
+        ))}
       </div>
 
-      {/* Tab Description */}
       <div className="bg-slate-800/50 rounded-lg px-4 py-2 text-sm text-slate-400">
         {activeTab === 'team' && '📊 Showing stats for team-wide assignments only'}
         {activeTab === 'position' && `📊 Showing team-wide + ${selectedPosition}-specific assignments`}
@@ -424,7 +334,6 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
         {activeTab === 'individual' && !selectedPlayer && '📊 Select a player to view their stats'}
       </div>
 
-      {/* Position Selector */}
       {activeTab === 'position' && (
         <div className="flex flex-wrap gap-2">
           {positions.map(pos => {
@@ -434,9 +343,7 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
                 key={pos}
                 onClick={() => { setSelectedPosition(pos); setExpandedAssignment(null); setExpandedDrill(null); }}
                 className={`px-4 py-2 rounded-xl font-medium transition-colors ${
-                  selectedPosition === pos
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-slate-800 text-slate-400 hover:text-white'
+                  selectedPosition === pos ? 'bg-blue-500 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
                 }`}
               >
                 {pos} ({count})
@@ -446,7 +353,6 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
         </div>
       )}
 
-      {/* Player Selector */}
       {activeTab === 'individual' && (
         <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
           <p className="text-sm text-slate-400 mb-3">Select a player:</p>
@@ -456,9 +362,7 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
                 key={player.id}
                 onClick={() => { setSelectedPlayer(player); setExpandedAssignment(null); setExpandedDrill(null); }}
                 className={`px-4 py-2 rounded-xl font-medium transition-colors ${
-                  selectedPlayer?.id === player.id
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-slate-700 text-slate-400 hover:text-white'
+                  selectedPlayer?.id === player.id ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-400 hover:text-white'
                 }`}
               >
                 {player.jerseyNumber && <span className="mr-1">#{player.jerseyNumber}</span>}
@@ -467,13 +371,10 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
               </button>
             ))}
           </div>
-          {players.length === 0 && (
-            <p className="text-slate-500 text-center py-4">No players on team yet</p>
-          )}
+          {players.length === 0 && <p className="text-slate-500 text-center py-4">No players on team yet</p>}
         </div>
       )}
 
-      {/* Overall Stats Card */}
       {(activeTab === 'team' || activeTab === 'position' || (activeTab === 'individual' && selectedPlayer)) && (
         <div className="bg-gradient-to-br from-slate-800 to-slate-800/50 rounded-xl border border-slate-700 p-4 md:p-6">
           <h2 className="text-lg font-semibold text-white mb-4">
@@ -483,9 +384,7 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
           </h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-slate-900/50 rounded-xl p-4">
-              <p className="text-slate-400 text-sm">
-                {activeTab === 'individual' ? 'Total Logs' : 'Players'}
-              </p>
+              <p className="text-slate-400 text-sm">{activeTab === 'individual' ? 'Total Logs' : 'Players'}</p>
               <p className="text-3xl font-bold text-white">
                 {activeTab === 'individual' ? overallStats.totalLogs : overallStats.playerCount}
               </p>
@@ -514,7 +413,6 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
         </div>
       )}
 
-      {/* Assignments List */}
       {(activeTab === 'team' || activeTab === 'position' || (activeTab === 'individual' && selectedPlayer)) && (
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-white">
@@ -537,56 +435,42 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
               {filteredAssignments.map(assignment => {
                 const isExpanded = expandedAssignment === assignment.id;
                 const items = assignment.items.map(id => getItemDetails(id, assignment.type)).filter(Boolean);
-                
+
                 const relevantPlayers = getRelevantPlayers();
                 let completedCount = 0;
                 relevantPlayers.forEach(player => {
-                  const logs = getPlayerLogs(player.id).filter(l => l.assignmentId === assignment.id);
+                  const logs = (playerLogsMap[player.id] || []).filter(l => l.assignmentId === assignment.id);
                   if (logs.length > 0) completedCount++;
                 });
 
-                const getAssignmentTypeLabel = () => {
-                  if (assignment.assignedTo === 'team') return { text: 'Team', color: 'bg-blue-500/20 text-blue-400' };
-                  return { text: 'Targeted', color: 'bg-purple-500/20 text-purple-400' };
-                };
-                const typeLabel = getAssignmentTypeLabel();
+                const typeLabel = assignment.assignedTo === 'team'
+                  ? { text: 'Team', color: 'bg-blue-500/20 text-blue-400' }
+                  : { text: 'Targeted', color: 'bg-purple-500/20 text-purple-400' };
 
                 return (
                   <div key={assignment.id} className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-                    {/* Assignment Header */}
                     <button
-                      onClick={() => {
-                        setExpandedAssignment(isExpanded ? null : assignment.id);
-                        setExpandedDrill(null);
-                      }}
+                      onClick={() => { setExpandedAssignment(isExpanded ? null : assignment.id); setExpandedDrill(null); }}
                       className="w-full p-4 text-left hover:bg-slate-700/30 transition-colors"
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                             <h3 className="font-semibold text-white">{assignment.title}</h3>
-                            <span className={`px-2 py-0.5 text-xs rounded-full ${typeLabel.color}`}>
-                              {typeLabel.text}
-                            </span>
+                            <span className={`px-2 py-0.5 text-xs rounded-full ${typeLabel.color}`}>{typeLabel.text}</span>
                           </div>
                           <p className="text-sm text-slate-400 mt-1">
                             {items.length} {assignment.type}s • {completedCount}/{relevantPlayers.length} completed
                           </p>
                         </div>
                         <div className="flex items-center space-x-2 ml-4">
-                          <svg 
-                            className={`w-5 h-5 text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-                            fill="none" 
-                            stroke="currentColor" 
-                            viewBox="0 0 24 24"
-                          >
+                          <svg className={`w-5 h-5 text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                           </svg>
                         </div>
                       </div>
                     </button>
 
-                    {/* Drills List (Expanded) */}
                     <AnimatePresence>
                       {isExpanded && (
                         <motion.div
@@ -602,7 +486,6 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
 
                               return (
                                 <div key={item.id} className="bg-slate-900/50 rounded-xl overflow-hidden">
-                                  {/* Drill Header */}
                                   <button
                                     onClick={() => setExpandedDrill(isDrillExpanded ? null : `${assignment.id}-${item.id}`)}
                                     className="w-full p-3 text-left hover:bg-slate-700/30 transition-colors"
@@ -610,9 +493,7 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
                                     <div className="flex items-center justify-between">
                                       <div className="flex-1 min-w-0">
                                         <p className="font-medium text-white">{item.name}</p>
-                                        <p className="text-xs text-slate-400">
-                                          {item.category} • {drillStats.playersCompleted}/{drillStats.totalPlayers} completed
-                                        </p>
+                                        <p className="text-xs text-slate-400">{item.category} • {drillStats.playersCompleted}/{drillStats.totalPlayers} completed</p>
                                       </div>
                                       <div className="flex items-center space-x-3 ml-4">
                                         {drillStats.percentage !== null && (
@@ -623,19 +504,13 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
                                             {drillStats.percentage}%
                                           </span>
                                         )}
-                                        <svg 
-                                          className={`w-4 h-4 text-slate-400 transition-transform ${isDrillExpanded ? 'rotate-180' : ''}`}
-                                          fill="none" 
-                                          stroke="currentColor" 
-                                          viewBox="0 0 24 24"
-                                        >
+                                        <svg className={`w-4 h-4 text-slate-400 transition-transform ${isDrillExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                         </svg>
                                       </div>
                                     </div>
                                   </button>
 
-                                  {/* Drill Stats (Expanded) */}
                                   <AnimatePresence>
                                     {isDrillExpanded && (
                                       <motion.div
@@ -645,7 +520,6 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
                                         className="border-t border-slate-700 overflow-hidden"
                                       >
                                         <div className="p-4 space-y-4">
-                                          {/* Drill Overall Stats */}
                                           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                             <div className="bg-slate-800 rounded-lg p-3">
                                               <p className="text-xs text-slate-400">Total Logs</p>
@@ -657,16 +531,12 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
                                                 <p className={`text-xl font-bold ${
                                                   drillStats.percentage >= 70 ? 'text-green-400' :
                                                   drillStats.percentage >= 50 ? 'text-yellow-400' : 'text-red-400'
-                                                }`}>
-                                                  {drillStats.percentage}%
-                                                </p>
+                                                }`}>{drillStats.percentage}%</p>
                                               </div>
                                             )}
                                             <div className="bg-slate-800 rounded-lg p-3">
                                               <p className="text-xs text-slate-400">Makes / Attempts</p>
-                                              <p className="text-xl font-bold text-white">
-                                                {drillStats.makes}/{drillStats.attempts}
-                                              </p>
+                                              <p className="text-xl font-bold text-white">{drillStats.makes}/{drillStats.attempts}</p>
                                             </div>
                                             {drillStats.avgDifficulty && (
                                               <div className="bg-slate-800 rounded-lg p-3">
@@ -676,7 +546,6 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
                                             )}
                                           </div>
 
-                                          {/* Soreness Summary */}
                                           {(drillStats.soreness.moderate > 0 || drillStats.soreness.severe > 0) && (
                                             <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
                                               <p className="text-sm text-red-400 font-medium">⚠️ Soreness Reports</p>
@@ -688,7 +557,6 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
                                             </div>
                                           )}
 
-                                          {/* Player Breakdown (not shown in individual view) */}
                                           {activeTab !== 'individual' && drillStats.playerBreakdown.length > 0 && (
                                             <div>
                                               <p className="text-sm font-medium text-slate-300 mb-2">Player Breakdown</p>
@@ -710,12 +578,8 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
                                                           <span className={`font-bold ${
                                                             pb.percentage >= 70 ? 'text-green-400' :
                                                             pb.percentage >= 50 ? 'text-yellow-400' : 'text-red-400'
-                                                          }`}>
-                                                            {pb.percentage}%
-                                                          </span>
-                                                          <span className="text-slate-500 text-xs ml-2">
-                                                            ({pb.makes}/{pb.attempts})
-                                                          </span>
+                                                          }`}>{pb.percentage}%</span>
+                                                          <span className="text-slate-500 text-xs ml-2">({pb.makes}/{pb.attempts})</span>
                                                         </>
                                                       ) : (
                                                         <span className="text-slate-400 text-sm">{pb.logs} logs</span>
@@ -728,9 +592,7 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
                                           )}
 
                                           {drillStats.totalLogs === 0 && (
-                                            <p className="text-center text-slate-500 py-4">
-                                              No one has completed this drill yet
-                                            </p>
+                                            <p className="text-center text-slate-500 py-4">No one has completed this drill yet</p>
                                           )}
                                         </div>
                                       </motion.div>
@@ -751,7 +613,6 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
         </div>
       )}
 
-      {/* No player selected message for individual tab */}
       {activeTab === 'individual' && !selectedPlayer && players.length > 0 && (
         <div className="bg-slate-800 rounded-xl border border-slate-700 p-8 text-center">
           <div className="w-16 h-16 bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
