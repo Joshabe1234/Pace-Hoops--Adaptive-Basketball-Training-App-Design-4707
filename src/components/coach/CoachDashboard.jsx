@@ -19,25 +19,30 @@ const CoachDashboard = ({ user, team, onNavigate }) => {
   const [dmUnread, setDmUnread] = useState(0);
   const [injuries, setInjuries] = useState([]);
   const [codeCopied, setCodeCopied] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const loadData = async () => {
     if (!team) return;
-    const [p, active, all, msgs, teamStats, inj, unread] = await Promise.all([
-      getTeamPlayers(team.id),
-      getTeamAssignments(team.id),
-      getAllTeamAssignments(team.id),
-      getTeamMessages(team.id),
-      getTeamStats(team.id),
-      getTeamInjuries(team.id),
-      getUnreadDMCount(user.id)
-    ]);
-    setPlayers(p);
-    setActiveAssignments(active);
-    setAllAssignments(all);
-    setMessages(msgs);
-    setStats(teamStats);
-    setInjuries(inj);
-    setDmUnread(unread);
+    try {
+      const [p, active, all, msgs, teamStats, inj, unread] = await Promise.all([
+        getTeamPlayers(team.id),
+        getTeamAssignments(team.id),
+        getAllTeamAssignments(team.id),
+        getTeamMessages(team.id),
+        getTeamStats(team.id),
+        getTeamInjuries(team.id),
+        getUnreadDMCount(user.id)
+      ]);
+      setPlayers(p);
+      setActiveAssignments(active);
+      setAllAssignments(all);
+      setMessages(msgs);
+      setStats(teamStats);
+      setInjuries(inj);
+      setDmUnread(unread);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -109,6 +114,17 @@ const CoachDashboard = ({ user, team, onNavigate }) => {
           >
             Get Started
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+          <p className="text-slate-400 text-sm">Loading...</p>
         </div>
       </div>
     );

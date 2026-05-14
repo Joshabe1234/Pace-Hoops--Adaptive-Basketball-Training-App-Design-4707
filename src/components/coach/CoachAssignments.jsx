@@ -27,25 +27,30 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
+  const [loading, setLoading] = useState(true);
 
   const allDrills = getAllDrills();
   const allWorkouts = getAllWorkouts();
 
   const loadData = async () => {
     if (!team) return;
-    const [assns, ps] = await Promise.all([
-      getTeamAssignments(team.id),
-      getTeamPlayers(team.id)
-    ]);
-    setAssignments(assns);
-    setPlayers(ps);
+    try {
+      const [assns, ps] = await Promise.all([
+        getTeamAssignments(team.id),
+        getTeamPlayers(team.id)
+      ]);
+      setAssignments(assns);
+      setPlayers(ps);
 
-    const logsMap = {};
-    await Promise.all(assns.map(async (a) => {
-      const logs = await getAssignmentLogs(a.id);
-      logsMap[a.id] = logs.length;
-    }));
-    setAssignmentLogsMap(logsMap);
+      const logsMap = {};
+      await Promise.all(assns.map(async (a) => {
+        const logs = await getAssignmentLogs(a.id);
+        logsMap[a.id] = logs.length;
+      }));
+      setAssignmentLogsMap(logsMap);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -138,6 +143,17 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
         <div className="text-center">
           <span className="text-4xl">📋</span>
           <p className="text-slate-400 mt-4">Create a team to manage assignments</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+          <p className="text-slate-400 text-sm">Loading...</p>
         </div>
       </div>
     );

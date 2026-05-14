@@ -22,39 +22,43 @@ const PlayerChat = ({ user, team }) => {
   const [dmMessages, setDmMessages] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [unreadDMCount, setUnreadDMCount] = useState(0);
+  const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef(null);
   const prevMsgCountRef = useRef(0);
 
   const loadData = async () => {
     if (!team) return;
+    try {
+      const [ps, teamMsgs, convs, unread] = await Promise.all([
+        getTeamPlayers(team.id),
+        getTeamMessages(team.id),
+        getConversations(user.id),
+        getUnreadDMCount(user.id)
+      ]);
 
-    const [ps, teamMsgs, convs, unread] = await Promise.all([
-      getTeamPlayers(team.id),
-      getTeamMessages(team.id),
-      getConversations(user.id),
-      getUnreadDMCount(user.id)
-    ]);
+      setPlayers(ps);
+      setMessages(teamMsgs);
+      setConversations(convs);
+      setUnreadDMCount(unread);
 
-    setPlayers(ps);
-    setMessages(teamMsgs);
-    setConversations(convs);
-    setUnreadDMCount(unread);
+      if (team.coachId) {
+        const coach = await getUser(team.coachId);
+        setCoachProfile(coach);
+      }
 
-    if (team.coachId) {
-      const coach = await getUser(team.coachId);
-      setCoachProfile(coach);
-    }
+      await Promise.all(
+        teamMsgs
+          .filter(m => !m.readBy?.includes(user.id))
+          .map(m => markMessageRead(m.id, user.id))
+      );
 
-    await Promise.all(
-      teamMsgs
-        .filter(m => !m.readBy?.includes(user.id))
-        .map(m => markMessageRead(m.id, user.id))
-    );
-
-    if (dmRecipient) {
-      const dms = await getDirectMessages(user.id, dmRecipient.id);
-      setDmMessages(dms);
-      await markConversationRead(user.id, dmRecipient.id);
+      if (dmRecipient) {
+        const dms = await getDirectMessages(user.id, dmRecipient.id);
+        setDmMessages(dms);
+        await markConversationRead(user.id, dmRecipient.id);
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -120,6 +124,17 @@ const PlayerChat = ({ user, team }) => {
           <span className="text-4xl">💬</span>
           <h3 className="text-lg font-semibold text-white mt-4">Join a Team</h3>
           <p className="text-slate-400 mt-2">Join a team using your coach's team code to access chat</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center" style={{ height: 'calc(100dvh - 136px)' }}>
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+          <p className="text-slate-400 text-sm">Loading...</p>
         </div>
       </div>
     );

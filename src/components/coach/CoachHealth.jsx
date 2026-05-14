@@ -6,37 +6,42 @@ const CoachHealth = ({ user, team }) => {
   const [players, setPlayers] = useState([]);
   const [injuries, setInjuries] = useState([]);
   const [playerHealthMap, setPlayerHealthMap] = useState({});
+  const [loading, setLoading] = useState(true);
 
   const loadData = async () => {
     if (!team) return;
-    const [p, inj] = await Promise.all([getTeamPlayers(team.id), getTeamInjuries(team.id)]);
-    setPlayers(p);
-    setInjuries(inj);
+    try {
+      const [p, inj] = await Promise.all([getTeamPlayers(team.id), getTeamInjuries(team.id)]);
+      setPlayers(p);
+      setInjuries(inj);
 
-    const healthMap = {};
-    await Promise.all(p.map(async (player) => {
-      const logs = await getPlayerLogs(player.id);
-      const weekAgo = new Date();
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      const recentLogs = logs.filter(l => new Date(l.createdAt) >= weekAgo);
-      const sorenessLevels = { none: 0, mild: 1, moderate: 2, severe: 3 };
-      const sorenessScores = recentLogs.map(l => sorenessLevels[l.soreness] || 0);
-      const avgSoreness = sorenessScores.length > 0 ? sorenessScores.reduce((a, b) => a + b, 0) / sorenessScores.length : 0;
-      const twoWeeksAgo = new Date();
-      twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
-      const recentInjuries = logs.filter(l => l.injured === true && new Date(l.createdAt) >= twoWeeksAgo);
-      const hasActiveInjury = recentInjuries.length > 0;
-      healthMap[player.id] = {
-        totalLogs: logs.length,
-        recentLogs: recentLogs.length,
-        avgSoreness,
-        sorenessLabel: avgSoreness < 0.5 ? 'Low' : avgSoreness < 1.5 ? 'Mild' : avgSoreness < 2.5 ? 'Moderate' : 'High',
-        injuryCount: recentInjuries.length,
-        hasActiveInjury,
-        status: hasActiveInjury ? 'injured' : avgSoreness >= 2 ? 'at-risk' : 'healthy'
-      };
-    }));
-    setPlayerHealthMap(healthMap);
+      const healthMap = {};
+      await Promise.all(p.map(async (player) => {
+        const logs = await getPlayerLogs(player.id);
+        const weekAgo = new Date();
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        const recentLogs = logs.filter(l => new Date(l.createdAt) >= weekAgo);
+        const sorenessLevels = { none: 0, mild: 1, moderate: 2, severe: 3 };
+        const sorenessScores = recentLogs.map(l => sorenessLevels[l.soreness] || 0);
+        const avgSoreness = sorenessScores.length > 0 ? sorenessScores.reduce((a, b) => a + b, 0) / sorenessScores.length : 0;
+        const twoWeeksAgo = new Date();
+        twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+        const recentInjuries = logs.filter(l => l.injured === true && new Date(l.createdAt) >= twoWeeksAgo);
+        const hasActiveInjury = recentInjuries.length > 0;
+        healthMap[player.id] = {
+          totalLogs: logs.length,
+          recentLogs: recentLogs.length,
+          avgSoreness,
+          sorenessLabel: avgSoreness < 0.5 ? 'Low' : avgSoreness < 1.5 ? 'Mild' : avgSoreness < 2.5 ? 'Moderate' : 'High',
+          injuryCount: recentInjuries.length,
+          hasActiveInjury,
+          status: hasActiveInjury ? 'injured' : avgSoreness >= 2 ? 'at-risk' : 'healthy'
+        };
+      }));
+      setPlayerHealthMap(healthMap);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -56,6 +61,17 @@ const CoachHealth = ({ user, team }) => {
         <div className="text-center">
           <span className="text-4xl">🏥</span>
           <p className="text-slate-400 mt-4">Create a team to view player health</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+          <p className="text-slate-400 text-sm">Loading...</p>
         </div>
       </div>
     );

@@ -20,6 +20,7 @@ const PlayerAssignments = ({ user, team }) => {
 
   const [logs, setLogs] = useState([]);
   const [assignments, setAssignments] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const [personalGoals, setPersonalGoals] = useState(() => {
     const stored = localStorage.getItem(`paceHoops_goals_${user.id}`);
@@ -47,12 +48,16 @@ const PlayerAssignments = ({ user, team }) => {
   });
 
   const loadData = async () => {
-    const [l, a] = await Promise.all([
-      getPlayerLogs(user.id),
-      team ? getPlayerAssignments(user.id, team.id) : Promise.resolve([])
-    ]);
-    setLogs(l);
-    setAssignments(a);
+    try {
+      const [l, a] = await Promise.all([
+        getPlayerLogs(user.id),
+        team ? getPlayerAssignments(user.id, team.id) : Promise.resolve([])
+      ]);
+      setLogs(l);
+      setAssignments(a);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -214,6 +219,17 @@ const PlayerAssignments = ({ user, team }) => {
       </div>
     );
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+          <p className="text-slate-400 text-sm">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6 space-y-6">

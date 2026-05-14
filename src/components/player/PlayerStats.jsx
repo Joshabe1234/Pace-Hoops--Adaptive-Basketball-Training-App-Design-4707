@@ -5,15 +5,32 @@ import { getDrill, getWorkout } from '../../data/drillLibrary';
 const PlayerStats = ({ user, team }) => {
   const [stats, setStats] = useState({ totalLogs: 0, shooting: { makes: 0, attempts: 0, percentage: null }, completionRate: 0, soreness: {} });
   const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const load = async () => {
+  const loadData = async () => {
+    try {
       const [s, l] = await Promise.all([getPlayerStats(user.id), getPlayerLogs(user.id)]);
       setStats(s);
       setLogs(l);
-    };
-    load();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
   }, [user.id]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+          <p className="text-slate-400 text-sm">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6 space-y-6">

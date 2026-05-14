@@ -21,33 +21,38 @@ const CoachChat = ({ user, team }) => {
   const [dmMessages, setDmMessages] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [unreadDMCount, setUnreadDMCount] = useState(0);
+  const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef(null);
   const prevMsgCountRef = useRef(0);
 
   const loadData = async () => {
     if (!team) return;
-    const [ps, teamMsgs, convs, unread] = await Promise.all([
-      getTeamPlayers(team.id),
-      getTeamMessages(team.id),
-      getConversations(user.id),
-      getUnreadDMCount(user.id)
-    ]);
+    try {
+      const [ps, teamMsgs, convs, unread] = await Promise.all([
+        getTeamPlayers(team.id),
+        getTeamMessages(team.id),
+        getConversations(user.id),
+        getUnreadDMCount(user.id)
+      ]);
 
-    setPlayers(ps);
-    setMessages(teamMsgs);
-    setConversations(convs);
-    setUnreadDMCount(unread);
+      setPlayers(ps);
+      setMessages(teamMsgs);
+      setConversations(convs);
+      setUnreadDMCount(unread);
 
-    await Promise.all(
-      teamMsgs
-        .filter(m => !m.readBy?.includes(user.id))
-        .map(m => markMessageRead(m.id, user.id))
-    );
+      await Promise.all(
+        teamMsgs
+          .filter(m => !m.readBy?.includes(user.id))
+          .map(m => markMessageRead(m.id, user.id))
+      );
 
-    if (dmRecipient) {
-      const dms = await getDirectMessages(user.id, dmRecipient.id);
-      setDmMessages(dms);
-      await markConversationRead(user.id, dmRecipient.id);
+      if (dmRecipient) {
+        const dms = await getDirectMessages(user.id, dmRecipient.id);
+        setDmMessages(dms);
+        await markConversationRead(user.id, dmRecipient.id);
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -107,6 +112,17 @@ const CoachChat = ({ user, team }) => {
         <div className="text-center">
           <span className="text-4xl">💬</span>
           <p className="text-slate-400 mt-4">Create a team to start messaging</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center" style={{ height: 'calc(100dvh - 136px)' }}>
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+          <p className="text-slate-400 text-sm">Loading...</p>
         </div>
       </div>
     );

@@ -22,6 +22,7 @@ const PlayerDashboard = ({ user, team, onTeamJoined, refreshUser, setCurrentView
   const [assignments, setAssignments] = useState([]);
   const [schedule, setSchedule] = useState([]);
   const [coach, setCoach] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const stored = localStorage.getItem(`paceHoops_goals_${user.id}`);
@@ -29,19 +30,23 @@ const PlayerDashboard = ({ user, team, onTeamJoined, refreshUser, setCurrentView
   }, [user.id]);
 
   const loadData = async () => {
-    const [s, l] = await Promise.all([getPlayerStats(user.id), getPlayerLogs(user.id)]);
-    setStats(s);
-    setLogs(l);
+    try {
+      const [s, l] = await Promise.all([getPlayerStats(user.id), getPlayerLogs(user.id)]);
+      setStats(s);
+      setLogs(l);
 
-    if (team) {
-      const [a, sch, c] = await Promise.all([
-        getPlayerAssignments(user.id, team.id),
-        getTeamSchedule(team.id),
-        getUser(team.coachId)
-      ]);
-      setAssignments(a);
-      setSchedule(sch);
-      setCoach(c);
+      if (team) {
+        const [a, sch, c] = await Promise.all([
+          getPlayerAssignments(user.id, team.id),
+          getTeamSchedule(team.id),
+          getUser(team.coachId)
+        ]);
+        setAssignments(a);
+        setSchedule(sch);
+        setCoach(c);
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -197,6 +202,17 @@ const PlayerDashboard = ({ user, team, onTeamJoined, refreshUser, setCurrentView
             You can still use Pace Hoops to track your individual workouts and personal goals.
             Once you join a team, your coach will be able to assign drills and track your progress.
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+          <p className="text-slate-400 text-sm">Loading...</p>
         </div>
       </div>
     );

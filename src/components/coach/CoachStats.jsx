@@ -18,21 +18,26 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
   const [players, setPlayers] = useState([]);
   const [allAssignments, setAllAssignments] = useState([]);
   const [playerLogsMap, setPlayerLogsMap] = useState({});
+  const [loading, setLoading] = useState(true);
 
   const loadData = async () => {
     if (!team) return;
-    const [ps, assns] = await Promise.all([
-      getTeamPlayers(team.id),
-      getAllTeamAssignments(team.id)
-    ]);
-    setPlayers(ps);
-    setAllAssignments(assns);
+    try {
+      const [ps, assns] = await Promise.all([
+        getTeamPlayers(team.id),
+        getAllTeamAssignments(team.id)
+      ]);
+      setPlayers(ps);
+      setAllAssignments(assns);
 
-    const logsMap = {};
-    await Promise.all(ps.map(async (p) => {
-      logsMap[p.id] = await getPlayerLogs(p.id);
-    }));
-    setPlayerLogsMap(logsMap);
+      const logsMap = {};
+      await Promise.all(ps.map(async (p) => {
+        logsMap[p.id] = await getPlayerLogs(p.id);
+      }));
+      setPlayerLogsMap(logsMap);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -228,6 +233,17 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
         <div className="text-center">
           <span className="text-4xl">📊</span>
           <p className="text-slate-400 mt-4">Create a team to view analytics</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+          <p className="text-slate-400 text-sm">Loading...</p>
         </div>
       </div>
     );

@@ -5,6 +5,16 @@ const PlayerSchedule = ({ user, team }) => {
   const [events, setEvents] = useState([]);
   const [viewMode, setViewMode] = useState('upcoming');
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [loading, setLoading] = useState(true);
+
+  const loadEvents = async () => {
+    try {
+      const teamEvents = await getTeamSchedule(team.id);
+      setEvents(teamEvents);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (team) {
@@ -14,11 +24,6 @@ const PlayerSchedule = ({ user, team }) => {
       return () => clearInterval(interval);
     }
   }, [team?.id]);
-
-  const loadEvents = async () => {
-    const teamEvents = await getTeamSchedule(team.id);
-    setEvents(teamEvents);
-  };
 
   // Parse date string as local date (YYYY-MM-DD)
   const parseLocalDate = (dateStr) => {
@@ -134,6 +139,17 @@ const PlayerSchedule = ({ user, team }) => {
           <span className="text-4xl">📅</span>
           <h3 className="text-lg font-semibold text-white mt-4">Join a Team</h3>
           <p className="text-slate-400 mt-2">Join a team to see the schedule</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+          <p className="text-slate-400 text-sm">Loading...</p>
         </div>
       </div>
     );

@@ -19,24 +19,29 @@ const CoachRoster = ({ user, team, refreshTeam }) => {
   const [editingPosition, setEditingPosition] = useState(false);
   const [tempPosition, setTempPosition] = useState('');
   const [showBlocked, setShowBlocked] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const loadData = async () => {
     if (!team) return;
-    const ps = await getTeamPlayers(team.id);
-    setPlayers(ps);
+    try {
+      const ps = await getTeamPlayers(team.id);
+      setPlayers(ps);
 
-    const statsMap = {};
-    await Promise.all(ps.map(async (p) => {
-      statsMap[p.id] = await getPlayerStats(p.id);
-    }));
-    setPlayerStatsMap(statsMap);
-
-    if (team.blockedPlayerIds?.length > 0) {
-      const usersMap = {};
-      await Promise.all(team.blockedPlayerIds.map(async (id) => {
-        usersMap[id] = await getUser(id);
+      const statsMap = {};
+      await Promise.all(ps.map(async (p) => {
+        statsMap[p.id] = await getPlayerStats(p.id);
       }));
-      setBlockedUsersMap(usersMap);
+      setPlayerStatsMap(statsMap);
+
+      if (team.blockedPlayerIds?.length > 0) {
+        const usersMap = {};
+        await Promise.all(team.blockedPlayerIds.map(async (id) => {
+          usersMap[id] = await getUser(id);
+        }));
+        setBlockedUsersMap(usersMap);
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -78,6 +83,17 @@ const CoachRoster = ({ user, team, refreshTeam }) => {
         <div className="text-center">
           <span className="text-4xl">👥</span>
           <p className="text-slate-400 mt-4">Create a team to manage your roster</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+          <p className="text-slate-400 text-sm">Loading...</p>
         </div>
       </div>
     );

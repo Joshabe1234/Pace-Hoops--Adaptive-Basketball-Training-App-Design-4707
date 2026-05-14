@@ -9,7 +9,8 @@ const CoachSchedule = ({ user, team }) => {
   const [viewMode, setViewMode] = useState('month');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
-  
+  const [loading, setLoading] = useState(true);
+
   const [newEvent, setNewEvent] = useState({
     title: '',
     type: 'practice',
@@ -27,8 +28,12 @@ const CoachSchedule = ({ user, team }) => {
   }, [team?.id]);
 
   const loadEvents = async () => {
-    const teamEvents = await getTeamSchedule(team.id);
-    setEvents(teamEvents);
+    try {
+      const teamEvents = await getTeamSchedule(team.id);
+      setEvents(teamEvents);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Parse date string as local date (YYYY-MM-DD)
@@ -141,6 +146,17 @@ const CoachSchedule = ({ user, team }) => {
         <div className="text-center">
           <span className="text-4xl">📅</span>
           <p className="text-slate-400 mt-4">Create a team to manage your schedule</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+          <p className="text-slate-400 text-sm">Loading...</p>
         </div>
       </div>
     );
