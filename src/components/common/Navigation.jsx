@@ -1,19 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { getTeamMessages } from '../../data/supabaseDb';
+import { getTeamMessages, getUnreadDMCount } from '../../data/supabaseDb';
 
 const Navigation = ({ user, team, currentView, setCurrentView, onLogout, isCoach }) => {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadDMCount, setUnreadDMCount] = useState(0);
   const [lastViewedChat, setLastViewedChat] = useState(() => {
     const stored = localStorage.getItem(`paceHoops_lastChat_${user?.id}`);
     return stored ? new Date(stored) : new Date(0);
   });
 
-  // Check for unread messages
+  // Check for unread team messages + unread DMs
   useEffect(() => {
     const checkUnread = async () => {
-      if (team && user) {
+      if (!user) return;
+      const dmCount = await getUnreadDMCount(user.id);
+      setUnreadDMCount(dmCount);
+      if (team) {
         const messages = await getTeamMessages(team.id);
         const unread = messages.filter(m => {
           const msgDate = new Date(m.createdAt);
@@ -35,6 +39,7 @@ const Navigation = ({ user, team, currentView, setCurrentView, onLogout, isCoach
       setLastViewedChat(now);
       localStorage.setItem(`paceHoops_lastChat_${user?.id}`, now.toISOString());
       setUnreadCount(0);
+      setUnreadDMCount(0);
     }
   }, [currentView, user?.id]);
 
@@ -45,7 +50,7 @@ const Navigation = ({ user, team, currentView, setCurrentView, onLogout, isCoach
     { id: 'stats', label: 'Analytics', icon: '📊' },
     { id: 'health', label: 'Health', icon: '🏥' },
     { id: 'schedule', label: 'Schedule', icon: '📅' },
-    { id: 'chat', label: 'Chat', icon: '💬', badge: unreadCount }
+    { id: 'chat', label: 'Chat', icon: '💬', badge: unreadCount + unreadDMCount }
   ];
 
   const playerNavItems = [
@@ -53,7 +58,7 @@ const Navigation = ({ user, team, currentView, setCurrentView, onLogout, isCoach
     { id: 'training', label: 'Training', icon: '🏋️' },
     { id: 'stats', label: 'My Stats', icon: '📊' },
     { id: 'schedule', label: 'Schedule', icon: '📅' },
-    { id: 'chat', label: 'Chat', icon: '💬', badge: unreadCount }
+    { id: 'chat', label: 'Chat', icon: '💬', badge: unreadCount + unreadDMCount }
   ];
 
   const navItems = isCoach ? coachNavItems : playerNavItems;
