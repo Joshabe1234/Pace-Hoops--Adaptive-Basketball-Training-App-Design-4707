@@ -524,6 +524,19 @@ const normalizeMessage = (row) => {
 
 const getConversationId = (userId1, userId2) => [userId1, userId2].sort().join('_');
 
+const normalizeDM = (row) => {
+  if (!row) return null;
+  return {
+    id: row.id,
+    conversationId: row.conversation_id,
+    senderId: row.sender_id,
+    recipientId: row.recipient_id,
+    content: row.content,
+    read: row.read || false,
+    createdAt: row.created_at
+  };
+};
+
 export const createDirectMessage = async (senderId, recipientId, content) => {
   const conversationId = getConversationId(senderId, recipientId);
   const { data: row, error } = await supabase
