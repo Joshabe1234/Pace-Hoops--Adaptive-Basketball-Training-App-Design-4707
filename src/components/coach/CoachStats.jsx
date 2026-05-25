@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getDrill, getWorkout, getAllDrills } from '../../data/drillLibrary';
 import {
@@ -7,13 +7,37 @@ import {
   getPlayerLogs
 } from '../../data/supabaseDb';
 
+const POSITIONS = ['PG', 'SG', 'SF', 'PF', 'C'];
+const POSITION_LABELS = { PG: 'Point Guard', SG: 'Shooting Guard', SF: 'Small Forward', PF: 'Power Forward', C: 'Center' };
+const POSITION_CATEGORY = { PG: 'ball-handling', SG: 'shooting', SF: 'shooting', PF: 'post', C: 'post' };
+
+const getWeekStart = (date = new Date()) => {
+  const d = new Date(date);
+  const day = d.getDay();
+  d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+const getWeekEnd = (weekStart) => {
+  const d = new Date(weekStart);
+  d.setDate(d.getDate() + 7);
+  return d;
+};
+
+const formatWeekLabel = (weekStart, currentWeekStart) => {
+  if (weekStart.getTime() === currentWeekStart.getTime()) return 'Current Week';
+  return `Week of ${weekStart.toLocaleDateString([], { month: 'short', day: 'numeric' })}`;
+};
+
 const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
   const [activeTab, setActiveTab] = useState('team');
-  const [selectedPosition, setSelectedPosition] = useState('Point Guard');
+  const [selectedPosition, setSelectedPosition] = useState('PG');
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [expandedAssignment, setExpandedAssignment] = useState(null);
   const [expandedDrill, setExpandedDrill] = useState(null);
   const [showAIRecommendations, setShowAIRecommendations] = useState(false);
+  const [selectedWeek, setSelectedWeek] = useState(() => getWeekStart());
 
   const [players, setPlayers] = useState([]);
   const [allAssignments, setAllAssignments] = useState([]);
@@ -50,7 +74,30 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
     if (initialAssignment) setExpandedAssignment(initialAssignment.id);
   }, [initialAssignment]);
 
-  const positions = ['Point Guard', 'Shooting Guard', 'Small Forward', 'Power Forward', 'Center'];
+  const currentWeekStart = useMemo(() => getWeekStart(), []);
+
+  const availableWeeks = useMemo(() => {
+    const weekSet = new Set([currentWeekStart.getTime()]);
+    Object.values(playerLogsMap).forEach(logs => {
+      logs.forEach(log => {
+        if (log.createdAt) weekSet.add(getWeekStart(new Date(log.createdAt)).getTime());
+      });
+    });
+    return Array.from(weekSet).sort((a, b) => b - a).map(t => new Date(t));
+  }, [playerLogsMap]);
+
+  const weekFilteredLogsMap = useMemo(() => {
+    const wStart = selectedWeek;
+    const wEnd = getWeekEnd(wStart);
+    const filtered = {};
+    Object.entries(playerLogsMap).forEach(([playerId, logs]) => {
+      filtered[playerId] = logs.filter(log => {
+        const d = new Date(log.createdAt);
+        return d >= wStart && d < wEnd;
+      });
+    });
+    return filtered;
+  }, [playerLogsMap, selectedWeek]);
 
   const getPlayersByPosition = (position) => players.filter(p => p.position === position);
 
@@ -70,10 +117,7 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
   const getFilteredAssignments = () => {
     if (activeTab === 'team') return allAssignments.filter(a => a.assignedTo === 'team');
     if (activeTab === 'position') {
-      return allAssignments.filter(a => {
-        if (a.assignedTo === 'team') return true;
-        return isAssignedToPosition(a, selectedPosition);
-      });
+      return allAssignments.filter(a => a.assignedTo === 'team' || isAssignedToPosition(a, selectedPosition));
     }
     if (activeTab === 'individual' && selectedPlayer) {
       return allAssignments.filter(a => isAssignedToPlayer(a, selectedPlayer.id));
@@ -90,31 +134,28 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
 
   const getDrillStats = (drillId, assignmentId) => {
     const relevantPlayers = getRelevantPlayers();
-
     let totalMakes = 0, totalAttempts = 0, totalLogs = 0, totalDifficulty = 0, difficultyCount = 0;
     let sorenessCount = { none: 0, mild: 0, moderate: 0, severe: 0 };
     const playerBreakdown = [];
 
     relevantPlayers.forEach(player => {
-      const playerLogs = (playerLogsMap[player.id] || []).filter(
+      const playerLogs = (weekFilteredLogsMap[player.id] || []).filter(
         l => l.itemId === drillId && l.assignmentId === assignmentId
       );
-
       if (playerLogs.length > 0) {
         const playerMakes = playerLogs.reduce((sum, l) => sum + (l.makes || 0), 0);
         const playerAttempts = playerLogs.reduce((sum, l) => sum + (l.attempts || 0), 0);
-        const playerPercentage = playerAttempts > 0 ? Math.round((playerMakes / playerAttempts) * 100) : null;
-
         totalMakes += playerMakes;
         totalAttempts += playerAttempts;
         totalLogs += playerLogs.length;
-
         playerLogs.forEach(l => {
           if (l.difficulty) { totalDifficulty += l.difficulty; difficultyCount++; }
           if (l.soreness) sorenessCount[l.soreness] = (sorenessCount[l.soreness] || 0) + 1;
         });
-
-        playerBreakdown.push({ player, logs: playerLogs.length, makes: playerMakes, attempts: playerAttempts, percentage: playerPercentage });
+        playerBreakdown.push({
+          player, logs: playerLogs.length, makes: playerMakes, attempts: playerAttempts,
+          percentage: playerAttempts > 0 ? Math.round((playerMakes / playerAttempts) * 100) : null
+        });
       }
     });
 
@@ -129,12 +170,11 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
 
   const getOverallStats = () => {
     const relevantPlayers = getRelevantPlayers();
-    const filteredAssignments = getFilteredAssignments();
-    const filteredAssignmentIds = filteredAssignments.map(a => a.id);
-
+    const filteredAssignmentIds = getFilteredAssignments().map(a => a.id);
     let totalLogs = 0, totalMakes = 0, totalAttempts = 0;
+
     relevantPlayers.forEach(player => {
-      const logs = (playerLogsMap[player.id] || []).filter(l => filteredAssignmentIds.includes(l.assignmentId));
+      const logs = (weekFilteredLogsMap[player.id] || []).filter(l => filteredAssignmentIds.includes(l.assignmentId));
       totalLogs += logs.length;
       logs.forEach(l => {
         if (l.makes !== undefined) totalMakes += l.makes;
@@ -148,7 +188,7 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
         makes: totalMakes, attempts: totalAttempts,
         percentage: totalAttempts > 0 ? Math.round((totalMakes / totalAttempts) * 100) : null
       },
-      assignmentCount: filteredAssignments.length
+      assignmentCount: getFilteredAssignments().length
     };
   };
 
@@ -156,55 +196,77 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
     const drills = getAllDrills();
     const recommendations = [];
 
-    const overallStats = getOverallStats();
-    const shootingPct = overallStats.shooting.percentage;
+    const getPlayerWeekShooting = (playerId, wStart) => {
+      const wEnd = getWeekEnd(wStart);
+      const logs = (playerLogsMap[playerId] || []).filter(l => {
+        const d = new Date(l.createdAt);
+        return d >= wStart && d < wEnd && l.attempts !== undefined;
+      });
+      const makes = logs.reduce((s, l) => s + (l.makes || 0), 0);
+      const attempts = logs.reduce((s, l) => s + (l.attempts || 0), 0);
+      return attempts > 0 ? Math.round((makes / attempts) * 100) : null;
+    };
 
-    if (shootingPct !== null && shootingPct < 50) {
+    const prevWeekStart = new Date(selectedWeek);
+    prevWeekStart.setDate(prevWeekStart.getDate() - 7);
+
+    players.forEach(player => {
+      const currPct = getPlayerWeekShooting(player.id, selectedWeek);
+      const prevPct = getPlayerWeekShooting(player.id, prevWeekStart);
+      if (currPct !== null && prevPct !== null && prevPct - currPct >= 15) {
+        recommendations.push({
+          type: 'trend', priority: 'high',
+          title: `Shooting Drop: ${player.name}`,
+          description: `${player.name} dropped ${prevPct - currPct}% this week (${prevPct}% → ${currPct}%). Consider reviewing form or drill difficulty.`,
+          suggestedDrills: drills.filter(d => d.category === 'shooting').slice(0, 2)
+        });
+      }
+    });
+
+    const overallStats = getOverallStats();
+    if (overallStats.shooting.percentage !== null && overallStats.shooting.percentage < 50) {
       recommendations.push({
         type: 'drill', priority: 'high',
         title: 'Focus on Form Shooting',
-        description: `Team shooting is at ${shootingPct}%. Assign form shooting drills to improve fundamentals.`,
+        description: `Team shooting is at ${overallStats.shooting.percentage}% this week. Assign form shooting drills to improve fundamentals.`,
         suggestedDrills: drills.filter(d => d.category === 'shooting').slice(0, 2)
       });
     }
 
-    const lowCompletionPlayers = players.filter(p => (playerLogsMap[p.id] || []).length < 3);
+    const lowCompletionPlayers = players.filter(p => (weekFilteredLogsMap[p.id] || []).length < 3);
     if (lowCompletionPlayers.length > 0) {
       recommendations.push({
         type: 'engagement', priority: 'medium',
-        title: 'Low Engagement Alert',
-        description: `${lowCompletionPlayers.length} player${lowCompletionPlayers.length > 1 ? 's have' : ' has'} completed fewer than 3 drills.`,
+        title: 'Low Engagement This Week',
+        description: `${lowCompletionPlayers.length} player${lowCompletionPlayers.length > 1 ? 's have' : ' has'} completed fewer than 3 drills this week.`,
         players: lowCompletionPlayers
       });
     }
 
-    positions.forEach(pos => {
+    POSITIONS.forEach(pos => {
       const posPlayers = getPlayersByPosition(pos);
       if (posPlayers.length > 0) {
         let posMakes = 0, posAttempts = 0;
         posPlayers.forEach(p => {
-          (playerLogsMap[p.id] || []).forEach(l => {
+          (weekFilteredLogsMap[p.id] || []).forEach(l => {
             if (l.makes !== undefined) posMakes += l.makes;
             if (l.attempts !== undefined) posAttempts += l.attempts;
           });
         });
         const posPct = posAttempts > 0 ? Math.round((posMakes / posAttempts) * 100) : null;
         if (posPct !== null && posPct < 45) {
-          const categoryMap = { 'Point Guard': 'ball-handling', 'Shooting Guard': 'shooting', 'Small Forward': 'shooting', 'Power Forward': 'post', 'Center': 'post' };
-          const category = categoryMap[pos] || 'shooting';
+          const category = POSITION_CATEGORY[pos] || 'shooting';
           recommendations.push({
             type: 'position', priority: 'medium',
-            title: `${pos} Development`,
-            description: `${pos}s are shooting ${posPct}%. Consider targeted ${category} drills.`,
-            position: pos,
+            title: `${POSITION_LABELS[pos]} Development`,
+            description: `${POSITION_LABELS[pos]}s are shooting ${posPct}% this week. Consider targeted ${category} drills.`,
             suggestedDrills: drills.filter(d => d.category === category).slice(0, 2)
           });
         }
       }
     });
 
-    const hasWorkouts = allAssignments.some(a => a.type === 'workout');
-    if (!hasWorkouts && allAssignments.length > 2) {
+    if (!allAssignments.some(a => a.type === 'workout') && allAssignments.length > 2) {
       recommendations.push({
         type: 'balance', priority: 'low',
         title: 'Add Conditioning',
@@ -224,7 +286,6 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
   const overallStats = getOverallStats();
   const filteredAssignments = getFilteredAssignments();
   const aiRecommendations = generateAIRecommendations();
-
   const getItemDetails = (itemId, type) => type === 'drill' ? getDrill(itemId) : getWorkout(itemId);
 
   if (!team) {
@@ -251,20 +312,33 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
 
   return (
     <div className="p-4 md:p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-white">Analytics</h1>
           <p className="text-slate-400">Track performance across your team</p>
         </div>
-        <button
-          onClick={() => setShowAIRecommendations(!showAIRecommendations)}
-          className={`px-4 py-2 rounded-xl font-medium flex items-center space-x-2 transition-colors ${
-            showAIRecommendations ? 'bg-purple-500 text-white' : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'
-          }`}
-        >
-          <span>🤖</span>
-          <span>AI Insights</span>
-        </button>
+        <div className="flex items-center space-x-2 flex-wrap gap-2">
+          <select
+            value={selectedWeek.getTime()}
+            onChange={(e) => setSelectedWeek(new Date(parseInt(e.target.value)))}
+            className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm"
+          >
+            {availableWeeks.map(w => (
+              <option key={w.getTime()} value={w.getTime()}>
+                {formatWeekLabel(w, currentWeekStart)}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={() => setShowAIRecommendations(!showAIRecommendations)}
+            className={`px-4 py-2 rounded-xl font-medium flex items-center space-x-2 transition-colors ${
+              showAIRecommendations ? 'bg-purple-500 text-white' : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'
+            }`}
+          >
+            <span>🤖</span>
+            <span>AI Insights</span>
+          </button>
+        </div>
       </div>
 
       <AnimatePresence>
@@ -280,7 +354,7 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
                 <h2 className="text-lg font-semibold text-white flex items-center space-x-2">
                   <span>🤖</span><span>AI Recommendations</span>
                 </h2>
-                <span className="text-xs text-slate-400">Based on team performance data</span>
+                <span className="text-xs text-slate-400">{formatWeekLabel(selectedWeek, currentWeekStart)}</span>
               </div>
               <div className="space-y-3">
                 {aiRecommendations.map((rec, idx) => (
@@ -289,22 +363,18 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
                     rec.priority === 'medium' ? 'bg-yellow-500/10 border-yellow-500/30' :
                     'bg-slate-800/50 border-slate-700'
                   }`}>
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="flex items-center space-x-2">
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${
-                            rec.priority === 'high' ? 'bg-red-500/20 text-red-400' :
-                            rec.priority === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
-                            'bg-green-500/20 text-green-400'
-                          }`}>
-                            {rec.priority === 'high' ? '⚠️ High' : rec.priority === 'medium' ? '📌 Medium' : '✅ Info'}
-                          </span>
-                          <span className="text-xs text-slate-500 capitalize">{rec.type}</span>
-                        </div>
-                        <h3 className="font-medium text-white mt-2">{rec.title}</h3>
-                        <p className="text-sm text-slate-400 mt-1">{rec.description}</p>
-                      </div>
+                    <div className="flex items-center space-x-2 mb-2">
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${
+                        rec.priority === 'high' ? 'bg-red-500/20 text-red-400' :
+                        rec.priority === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                        'bg-green-500/20 text-green-400'
+                      }`}>
+                        {rec.priority === 'high' ? '⚠️ High' : rec.priority === 'medium' ? '📌 Medium' : '✅ Info'}
+                      </span>
+                      <span className="text-xs text-slate-500 capitalize">{rec.type}</span>
                     </div>
+                    <h3 className="font-medium text-white">{rec.title}</h3>
+                    <p className="text-sm text-slate-400 mt-1">{rec.description}</p>
                     {rec.suggestedDrills?.length > 0 && (
                       <div className="mt-3 flex flex-wrap gap-2">
                         <span className="text-xs text-slate-500">Suggested:</span>
@@ -345,14 +415,14 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
 
       <div className="bg-slate-800/50 rounded-lg px-4 py-2 text-sm text-slate-400">
         {activeTab === 'team' && '📊 Showing stats for team-wide assignments only'}
-        {activeTab === 'position' && `📊 Showing team-wide + ${selectedPosition}-specific assignments`}
+        {activeTab === 'position' && `📊 Showing team-wide + ${POSITION_LABELS[selectedPosition]}-specific assignments`}
         {activeTab === 'individual' && selectedPlayer && `📊 Showing all assignments for ${selectedPlayer.name}`}
         {activeTab === 'individual' && !selectedPlayer && '📊 Select a player to view their stats'}
       </div>
 
       {activeTab === 'position' && (
         <div className="flex flex-wrap gap-2">
-          {positions.map(pos => {
+          {POSITIONS.map(pos => {
             const count = getPlayersByPosition(pos).length;
             return (
               <button
@@ -395,7 +465,7 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
         <div className="bg-gradient-to-br from-slate-800 to-slate-800/50 rounded-xl border border-slate-700 p-4 md:p-6">
           <h2 className="text-lg font-semibold text-white mb-4">
             {activeTab === 'team' && 'Team Overview'}
-            {activeTab === 'position' && `${selectedPosition} Overview`}
+            {activeTab === 'position' && `${POSITION_LABELS[selectedPosition]} Overview`}
             {activeTab === 'individual' && selectedPlayer && `${selectedPlayer.name}'s Overview`}
           </h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -433,7 +503,7 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-white">
             {activeTab === 'team' && 'Team Assignments'}
-            {activeTab === 'position' && `${selectedPosition} Assignments`}
+            {activeTab === 'position' && `${POSITION_LABELS[selectedPosition]} Assignments`}
             {activeTab === 'individual' && selectedPlayer && `${selectedPlayer.name}'s Assignments`}
           </h2>
 
@@ -442,7 +512,7 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
               <p className="text-slate-400">No assignments found</p>
               <p className="text-slate-500 text-sm mt-1">
                 {activeTab === 'team' && 'Create a team-wide assignment to see stats here'}
-                {activeTab === 'position' && `No team or ${selectedPosition}-specific assignments yet`}
+                {activeTab === 'position' && `No team or ${POSITION_LABELS[selectedPosition]}-specific assignments yet`}
                 {activeTab === 'individual' && 'No assignments for this player yet'}
               </p>
             </div>
@@ -451,14 +521,11 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
               {filteredAssignments.map(assignment => {
                 const isExpanded = expandedAssignment === assignment.id;
                 const items = assignment.items.map(id => getItemDetails(id, assignment.type)).filter(Boolean);
-
                 const relevantPlayers = getRelevantPlayers();
                 let completedCount = 0;
                 relevantPlayers.forEach(player => {
-                  const logs = (playerLogsMap[player.id] || []).filter(l => l.assignmentId === assignment.id);
-                  if (logs.length > 0) completedCount++;
+                  if ((weekFilteredLogsMap[player.id] || []).some(l => l.assignmentId === assignment.id)) completedCount++;
                 });
-
                 const typeLabel = assignment.assignedTo === 'team'
                   ? { text: 'Team', color: 'bg-blue-500/20 text-blue-400' }
                   : { text: 'Targeted', color: 'bg-purple-500/20 text-purple-400' };
@@ -476,14 +543,12 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
                             <span className={`px-2 py-0.5 text-xs rounded-full ${typeLabel.color}`}>{typeLabel.text}</span>
                           </div>
                           <p className="text-sm text-slate-400 mt-1">
-                            {items.length} {assignment.type}s • {completedCount}/{relevantPlayers.length} completed
+                            {items.length} {assignment.type}s • {completedCount}/{relevantPlayers.length} completed this week
                           </p>
                         </div>
-                        <div className="flex items-center space-x-2 ml-4">
-                          <svg className={`w-5 h-5 text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </div>
+                        <svg className={`w-5 h-5 text-slate-400 transition-transform ml-4 ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
                       </div>
                     </button>
 
@@ -608,7 +673,7 @@ const CoachStats = ({ user, team, selectedAssignment: initialAssignment }) => {
                                           )}
 
                                           {drillStats.totalLogs === 0 && (
-                                            <p className="text-center text-slate-500 py-4">No one has completed this drill yet</p>
+                                            <p className="text-center text-slate-500 py-4">No one has completed this drill yet this week</p>
                                           )}
                                         </div>
                                       </motion.div>

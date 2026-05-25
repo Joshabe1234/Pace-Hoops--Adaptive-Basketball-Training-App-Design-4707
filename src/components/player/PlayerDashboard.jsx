@@ -231,7 +231,9 @@ const PlayerDashboard = ({ user, team, onTeamJoined, refreshUser, setCurrentView
   return (
     <div className="p-4 md:p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Hey, {user.name?.split(' ')[0]}!</h1>
+        <h1 className="text-2xl font-bold text-white">
+          Hey, {user.name?.split(' ')[0]}!{user.position && <span className="text-slate-400 font-normal text-lg ml-2">· {user.position}</span>}
+        </h1>
         <p className="text-slate-400">{team.name}</p>
       </div>
 

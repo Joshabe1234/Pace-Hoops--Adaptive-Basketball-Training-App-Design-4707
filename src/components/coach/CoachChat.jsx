@@ -83,9 +83,13 @@ const CoachChat = ({ user, team }) => {
 
   const handleSendDM = async () => {
     if (!newMessage.trim() || !dmRecipient) return;
-    await createDirectMessage(user.id, dmRecipient.id, newMessage.trim());
-    setNewMessage('');
-    loadData();
+    try {
+      await createDirectMessage(user.id, dmRecipient.id, newMessage.trim());
+      setNewMessage('');
+      loadData();
+    } catch (err) {
+      console.error('DM send failed:', err.message);
+    }
   };
 
   const openDMChat = async (player) => {
