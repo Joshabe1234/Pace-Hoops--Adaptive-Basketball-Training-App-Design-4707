@@ -65,7 +65,10 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
   });
 
   const categories = [...new Set(itemsToShow.map(i => i.category))];
-  const positions = ['Point Guard', 'Shooting Guard', 'Small Forward', 'Power Forward', 'Center'];
+  // Player positions are stored as short codes (PG/SG/SF/PF/C) at signup, so the
+  // position picker must match on codes — full names never match and assign to nobody.
+  const POSITION_LABELS = { PG: 'Point Guard', SG: 'Shooting Guard', SF: 'Small Forward', PF: 'Power Forward', C: 'Center' };
+  const positions = ['PG', 'SG', 'SF', 'PF', 'C'];
 
   const getAssignedPlayers = () => {
     if (newAssignment.assignmentMode === 'team') return 'team';
@@ -131,6 +134,7 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
       const assignedPlayers = assignment.assignedTo
         .map(id => players.find(p => p.id === id))
         .filter(Boolean);
+      if (assignedPlayers.length === 0) return 'No players';
       if (assignedPlayers.length <= 2) return assignedPlayers.map(p => p.name).join(', ');
       return `${assignedPlayers.length} players`;
     }
@@ -365,7 +369,7 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
                               newAssignment.selectedPositions.includes(pos) ? 'bg-orange-500 text-white' : 'bg-slate-700 text-slate-400 hover:text-white'
                             }`}
                           >
-                            {pos} ({playersInPosition.length})
+                            {POSITION_LABELS[pos]} ({playersInPosition.length})
                           </button>
                         );
                       })}

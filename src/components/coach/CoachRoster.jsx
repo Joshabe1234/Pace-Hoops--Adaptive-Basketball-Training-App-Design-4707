@@ -8,7 +8,10 @@ import {
   getUser
 } from '../../data/supabaseDb';
 
-const POSITIONS = ['Point Guard', 'Shooting Guard', 'Small Forward', 'Power Forward', 'Center'];
+// Positions are stored as short codes (PG/SG/SF/PF/C) everywhere; the edit dropdown
+// must save codes too, or stats/assignment grouping by position silently breaks.
+const POSITION_LABELS = { PG: 'Point Guard', SG: 'Shooting Guard', SF: 'Small Forward', PF: 'Power Forward', C: 'Center' };
+const POSITIONS = ['PG', 'SG', 'SF', 'PF', 'C'];
 
 const CoachRoster = ({ user, team, refreshTeam }) => {
   const [players, setPlayers] = useState([]);
@@ -250,7 +253,7 @@ const CoachRoster = ({ user, team, refreshTeam }) => {
                         >
                           <option value="" className="text-slate-900">No position</option>
                           {POSITIONS.map((pos) => (
-                            <option key={pos} value={pos} className="text-slate-900">{pos}</option>
+                            <option key={pos} value={pos} className="text-slate-900">{POSITION_LABELS[pos]}</option>
                           ))}
                         </select>
                         <button onClick={handleSavePosition} className="p-2 bg-white/20 rounded-lg hover:bg-white/30">
