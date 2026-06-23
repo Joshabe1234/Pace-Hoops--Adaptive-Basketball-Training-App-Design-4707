@@ -17,6 +17,8 @@ const PlayerAssignments = ({ user, team }) => {
   const [selectedGoal, setSelectedGoal] = useState(null);
   const [selectedWeek, setSelectedWeek] = useState(null);
   const [expandedDrill, setExpandedDrill] = useState(null);
+  const [showCompleted, setShowCompleted] = useState(false);
+  const [expandedCompleted, setExpandedCompleted] = useState(null);
 
   const [logs, setLogs] = useState([]);
   const [assignments, setAssignments] = useState([]);
@@ -153,6 +155,10 @@ const PlayerAssignments = ({ user, team }) => {
     return !isPastDue && !isAssignmentCompleted(a);
   });
 
+  // Assignments where every item has been logged — these leave the pending list
+  // and live under the "Completed Assignments" view instead.
+  const completedAssignments = assignments.filter(a => isAssignmentCompleted(a));
+
   const activeGoals = personalGoals.filter(g => g.status === 'active');
 
   const renderDrillItem = (drill, isLogged, onLog, showSteps = true) => {
@@ -241,7 +247,7 @@ const PlayerAssignments = ({ user, team }) => {
       <div className="flex space-x-2 bg-slate-800 p-1 rounded-xl">
         {team && (
           <button
-            onClick={() => setActiveTab('team')}
+            onClick={() => { setActiveTab('team'); setShowCompleted(false); }}
             className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
               activeTab === 'team' ? 'bg-orange-500 text-white' : 'text-slate-400 hover:text-white'
             }`}
@@ -259,7 +265,7 @@ const PlayerAssignments = ({ user, team }) => {
         </button>
       </div>
 
-      {activeTab === 'team' && team && (
+      {activeTab === 'team' && team && !showCompleted && (
         <div className="space-y-4">
           {pendingAssignments.length === 0 ? (
             <div className="bg-slate-800 rounded-xl border border-slate-700 p-8 text-center">
@@ -303,6 +309,106 @@ const PlayerAssignments = ({ user, team }) => {
                           item,
                           isLogged,
                           () => { setLoggingItem(item); setLoggingContext({ type: 'assignment', id: assignment.id }); }
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+
+          {/* Tap to view assignments the player has fully completed */}
+          <button
+            onClick={() => { setShowCompleted(true); setExpandedCompleted(null); }}
+            className="w-full bg-slate-800 rounded-xl border border-slate-700 p-4 text-left hover:bg-slate-700/40 transition-colors"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-green-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <span className="text-green-400 text-lg">✓</span>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-white">Completed Assignments</h3>
+                  <p className="text-sm text-slate-400">{completedAssignments.length} finished</p>
+                </div>
+              </div>
+              <span className="text-slate-400 text-xl">›</span>
+            </div>
+          </button>
+        </div>
+      )}
+
+      {activeTab === 'team' && team && showCompleted && (
+        <div className="space-y-4">
+          <button
+            onClick={() => { setShowCompleted(false); setExpandedCompleted(null); }}
+            className="flex items-center space-x-2 text-slate-400 hover:text-white transition-colors"
+          >
+            <span className="text-lg">‹</span>
+            <span className="text-sm font-medium">Back to assignments</span>
+          </button>
+
+          <div>
+            <h2 className="text-lg font-bold text-white">Completed Assignments</h2>
+            <p className="text-slate-400 text-sm">Tap an assignment to see what you logged</p>
+          </div>
+
+          {completedAssignments.length === 0 ? (
+            <div className="bg-slate-800 rounded-xl border border-slate-700 p-8 text-center">
+              <span className="text-3xl">✅</span>
+              <p className="text-slate-400 mt-4">No completed assignments yet</p>
+              <p className="text-slate-500 text-sm mt-1">Finish an assignment and it'll show up here</p>
+            </div>
+          ) : (
+            completedAssignments.map((assignment) => {
+              const items = assignment.items.map(id => getItemDetails(id, assignment.type)).filter(Boolean);
+              const isExpanded = expandedCompleted === assignment.id;
+
+              return (
+                <div key={assignment.id} className="bg-slate-800 rounded-xl border border-green-500/30 overflow-hidden">
+                  <button
+                    onClick={() => setExpandedCompleted(isExpanded ? null : assignment.id)}
+                    className="w-full p-4 text-left"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <span className="text-green-400 text-lg flex-shrink-0">✓</span>
+                        <div>
+                          <h3 className="font-semibold text-white">{assignment.title}</h3>
+                          <p className="text-sm text-slate-400">{items.length} item{items.length !== 1 ? 's' : ''} • completed</p>
+                        </div>
+                      </div>
+                      <svg className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </button>
+
+                  {isExpanded && (
+                    <div className="border-t border-slate-700 p-4 space-y-3">
+                      {items.map((item) => {
+                        const log = logs.find(l => l.assignmentId === assignment.id && l.itemId === item.id);
+                        const soreness = log?.soreness ? log.soreness.charAt(0).toUpperCase() + log.soreness.slice(1) : 'None';
+                        return (
+                          <div key={item.id} className="p-3 bg-slate-700/50 rounded-lg">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-white">{item.name}</p>
+                                <p className="text-xs text-slate-400 mt-0.5">{log ? new Date(log.createdAt).toLocaleDateString() : ''}</p>
+                              </div>
+                              <div className="text-right ml-4 flex-shrink-0">
+                                {log?.makes !== undefined && log?.makes !== null && (
+                                  <p className="text-sm text-white">{log.makes}/{log.attempts}{log.percentage !== undefined && log.percentage !== null ? ` (${log.percentage}%)` : ''}</p>
+                                )}
+                                {log?.sets ? (
+                                  <p className="text-sm text-white">{log.sets}x{log.reps}{log.weight ? ` @ ${log.weight}lbs` : ''}</p>
+                                ) : null}
+                                <p className="text-xs text-slate-400 mt-0.5">Difficulty: {log?.difficulty ?? '—'}/5</p>
+                                <p className="text-xs text-slate-400">Soreness: {soreness}</p>
+                              </div>
+                            </div>
+                          </div>
                         );
                       })}
                     </div>

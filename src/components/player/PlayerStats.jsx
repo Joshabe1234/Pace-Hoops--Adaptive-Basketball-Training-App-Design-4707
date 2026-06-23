@@ -1,17 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { getPlayerStats, getPlayerLogs } from '../../data/supabaseDb';
+import { getPlayerStats, getPlayerLogs, getPlayerAssignments } from '../../data/supabaseDb';
 import { getDrill, getWorkout } from '../../data/drillLibrary';
 
 const PlayerStats = ({ user, team }) => {
   const [stats, setStats] = useState({ totalLogs: 0, shooting: { makes: 0, attempts: 0, percentage: null }, completionRate: 0, soreness: {} });
   const [logs, setLogs] = useState([]);
+  const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const loadData = async () => {
     try {
-      const [s, l] = await Promise.all([getPlayerStats(user.id), getPlayerLogs(user.id)]);
+      const [s, l, a] = await Promise.all([
+        getPlayerStats(user.id),
+        getPlayerLogs(user.id),
+        team ? getPlayerAssignments(user.id, team.id) : Promise.resolve([])
+      ]);
       setStats(s);
       setLogs(l);
+      setAssignments(a);
     } finally {
       setLoading(false);
     }
@@ -19,7 +25,11 @@ const PlayerStats = ({ user, team }) => {
 
   useEffect(() => {
     loadData();
-  }, [user.id]);
+    // Poll so stats (incl. Completion Rate) update live as new assignments arrive
+    // and logs are recorded, matching the other player screens' 5s refresh.
+    const interval = setInterval(loadData, 5000);
+    return () => clearInterval(interval);
+  }, [user.id, team?.id]);
 
   if (loading) {
     return (
@@ -31,6 +41,21 @@ const PlayerStats = ({ user, team }) => {
       </div>
     );
   }
+
+  // Completion Rate = % of assignments the coach gave this player that they've
+  // fully logged. An assignment counts as complete only when every item in it has
+  // a matching log (same rule as the player's Training screen). Shows "—" until
+  // they actually have assignments, so a brand-new player doesn't read as 0%.
+  const isAssignmentCompleted = (assignment) => {
+    if (!assignment.items || assignment.items.length === 0) return false;
+    return assignment.items.every(itemId =>
+      logs.some(l => l.assignmentId === assignment.id && l.itemId === itemId)
+    );
+  };
+  const completedAssignments = assignments.filter(isAssignmentCompleted).length;
+  const completionRate = assignments.length > 0
+    ? Math.round((completedAssignments / assignments.length) * 100)
+    : null;
 
   return (
     <div className="p-4 md:p-6 space-y-6">
@@ -46,7 +71,7 @@ const PlayerStats = ({ user, team }) => {
         </div>
         <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6">
           <p className="text-white/80 text-sm">Completion Rate</p>
-          <p className="text-4xl font-bold text-white">{stats.completionRate}%</p>
+          <p className="text-4xl font-bold text-white">{completionRate === null ? '—' : `${completionRate}%`}</p>
         </div>
       </div>
 

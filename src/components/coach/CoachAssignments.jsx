@@ -55,6 +55,10 @@ const CoachAssignments = ({ user, team, refreshTeam }) => {
 
   useEffect(() => {
     loadData();
+    // Poll so the "X logged" completion counts update live as players log,
+    // matching the other coach tabs (Stats/Health also refresh on a 10s cycle).
+    const interval = setInterval(loadData, 10000);
+    return () => clearInterval(interval);
   }, [team?.id]);
 
   const itemsToShow = newAssignment.type === 'drill' ? allDrills : allWorkouts;
