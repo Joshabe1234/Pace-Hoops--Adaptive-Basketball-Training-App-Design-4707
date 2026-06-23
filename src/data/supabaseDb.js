@@ -627,6 +627,17 @@ export const getPlayerStats = async (playerId) => {
   const recentLogs = logs.filter(l => new Date(l.createdAt) >= weekAgo);
   const recentSoreness = recentLogs.filter(l => l.soreness === 'moderate' || l.soreness === 'severe');
 
+  // Completion = assignments the coach gave this player that they've fully logged
+  // (every item has a matching log). The raw counts are exposed so getTeamStats can
+  // roll them up into a true team-wide rate. completionRate is null when the player
+  // has no assignments yet, so the UI can show "—" instead of a misleading 0%/100%.
+  const player = await getUser(playerId);
+  const assignments = player?.teamId ? await getPlayerAssignments(playerId, player.teamId) : [];
+  const isAssignmentCompleted = (a) =>
+    Array.isArray(a.items) && a.items.length > 0 &&
+    a.items.every(itemId => logs.some(l => l.assignmentId === a.id && l.itemId === itemId));
+  const completedAssignments = assignments.filter(isAssignmentCompleted).length;
+
   return {
     totalLogs: logs.length,
     shooting: {
@@ -634,7 +645,9 @@ export const getPlayerStats = async (playerId) => {
       attempts: totalAttempts,
       percentage: totalAttempts > 0 ? Math.round((totalMakes / totalAttempts) * 100) : null
     },
-    completionRate: logs.length > 0 ? Math.round((logs.filter(l => l.completed).length / logs.length) * 100) : 0,
+    assignedAssignments: assignments.length,
+    completedAssignments,
+    completionRate: assignments.length > 0 ? Math.round((completedAssignments / assignments.length) * 100) : null,
     soreness: { recentHighSoreness: recentSoreness.length, hasRecentSoreness: recentSoreness.length > 0 }
   };
 };
@@ -656,6 +669,9 @@ export const getTeamStats = async (teamId) => {
   const totalMakes = playerStats.reduce((sum, p) => sum + p.stats.shooting.makes, 0);
   const totalAttempts = playerStats.reduce((sum, p) => sum + p.stats.shooting.attempts, 0);
   const playersWithSoreness = playerStats.filter(p => p.stats.soreness.hasRecentSoreness);
+  // True team completion: total assignments finished across players ÷ total assigned.
+  const totalAssigned = playerStats.reduce((sum, p) => sum + p.stats.assignedAssignments, 0);
+  const totalCompleted = playerStats.reduce((sum, p) => sum + p.stats.completedAssignments, 0);
 
   return {
     playerStats,
@@ -666,8 +682,8 @@ export const getTeamStats = async (teamId) => {
         attempts: totalAttempts,
         percentage: totalAttempts > 0 ? Math.round((totalMakes / totalAttempts) * 100) : null
       },
-      avgCompletionRate: playerStats.length > 0
-        ? Math.round(playerStats.reduce((sum, p) => sum + p.stats.completionRate, 0) / playerStats.length)
+      avgCompletionRate: totalAssigned > 0
+        ? Math.round((totalCompleted / totalAssigned) * 100)
         : 0,
       soreness: {
         playersWithHighSoreness: playersWithSoreness.length,

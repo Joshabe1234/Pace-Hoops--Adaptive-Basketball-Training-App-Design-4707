@@ -164,7 +164,7 @@ const CoachRoster = ({ user, team, refreshTeam }) => {
                     <p className="text-xs text-slate-400">Shooting</p>
                   </div>
                   <div className="bg-slate-700/50 rounded-lg p-2">
-                    <p className="text-lg font-bold text-white">{stats.completionRate}%</p>
+                    <p className="text-lg font-bold text-white">{stats.completionRate ?? '--'}%</p>
                     <p className="text-xs text-slate-400">Complete</p>
                   </div>
                 </div>
@@ -294,7 +294,7 @@ const CoachRoster = ({ user, team, refreshTeam }) => {
                         <p className="text-sm text-slate-400">Total Logs</p>
                       </div>
                       <div className="bg-slate-700/50 rounded-xl p-4 text-center">
-                        <p className="text-2xl font-bold text-white">{stats.completionRate}%</p>
+                        <p className="text-2xl font-bold text-white">{stats.completionRate ?? '--'}%</p>
                         <p className="text-sm text-slate-400">Completion Rate</p>
                       </div>
                       <div className="bg-slate-700/50 rounded-xl p-4 text-center">
